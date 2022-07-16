@@ -1,0 +1,22 @@
+{
+    "config": {
+        "error": {
+            "unexpected_error": "Unexpected error. See logs for detail",
+            "connection_failed": "通讯异常",
+            "wrong_user": "用户不存在",
+            "wrong_pwd": "密码错误",
+            "login_error": "登录失败"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "username": "手机号",
+                    "password": "密码"
+                },
+                "description": "",
+                "title": "登录公牛智家账号"
+            }
+        },
+        "title": "Bull IoT"
+    }
+}

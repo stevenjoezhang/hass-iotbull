@@ -1,0 +1,22 @@
+{
+    "config": {
+        "error": {
+            "unexpected_error": "Unexpected error. See logs for detail",
+            "connection_failed": "Network unreachable",
+            "wrong_user": "User not found",
+            "wrong_pwd": "Wrong password",
+            "login_error": "Log in failed"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "username": "Phone number",
+                    "password": "Password"
+                },
+                "description": "",
+                "title": "Log in Bull IoT Account"
+            }
+        },
+        "title": "Bull IoT"
+    }
+}
