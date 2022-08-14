@@ -11,6 +11,18 @@ class PowerSwitch(SwitchEntity):
         device.entity = self
 
     @property
+    def device_info(self):
+        return {
+            "identifiers": {
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self._device._iotId)
+            },
+            "name": self._device.name,
+            "manufacturer": "Bull",
+            "model": "Bull switch"
+        }
+
+    @property
     def unique_id(self) -> str:
         return self._device.unique_id
 
@@ -42,7 +54,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities,
 ) -> None:
-    """Set up the Awesome Light platform."""
+    """Set up the Bull IoT platform."""
     entities = [PowerSwitch(device)
                 for device in hass.data[DOMAIN][BULL_DEVICES].values()]
-    async_add_entities(entities, update_before_add=True)
+    async_add_entities(entities, update_before_add=False)
