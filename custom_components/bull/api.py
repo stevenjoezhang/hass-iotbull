@@ -54,6 +54,9 @@ class BullApi:
             self.openid: str = None
         self.device_list = {}
 
+    def destroy(self) -> None:
+        self.stop_mqtt()
+
     def serialize(self):
         return {
             "username": self.username,
@@ -163,6 +166,11 @@ class BullApi:
         client.on_message = partial(on_message, self.on_message)
         client.connect_async("106.15.66.132", 1883, 60)
         client.loop_start()
+        self.client = client
+
+    def stop_mqtt(self):
+        if self.client:
+            self.client.loop_stop()
 
     def on_message(self, iotId, identifier, value: int):
         unique_id = iotId + "." + identifier
