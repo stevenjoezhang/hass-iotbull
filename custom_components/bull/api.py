@@ -246,9 +246,11 @@ class BullApi:
 
         try:
             response = await self._hass.async_add_executor_job(func)
-            #response = func()
+
             res = json.loads(response.content)
         except Exception:
             raise Exception("connection_failed")
 
+        _LOGGER.debug("Request: %s %s",
+                      path, response.content)
         return res
