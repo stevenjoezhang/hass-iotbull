@@ -1,9 +1,14 @@
 # Bull IoT for Home Assistant
 
 本插件实现了公牛智家协议的规范，可将公牛智家设备自动接入[Home Assistant](https://www.home-assistant.io)。目前测试已支持的公牛智家设备包括：
-- G27智能一位开关(单火/zigbee)
-- G27智能二位开关(单火/zigbee)
-- G27智能三位开关(单火/zigbee)
+
+| globalProductId | nickName |
+| - | - |
+| 3 | G27网关插座(zigbee版) |
+| 4 | G27智能一位开关(单火/zigbee) |
+| 5 | G27智能二位开关(单火/zigbee) |
+| 6 | G27智能三位开关(单火/zigbee) |
+| 15 | G27智能一位无线开关(zigbee) |
 
 插件支持Home Assistant后台界面集成，无需配置yaml即可轻松将设备接入。
 
