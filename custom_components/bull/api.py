@@ -138,7 +138,7 @@ class BullApi:
 
     def parse_devices(self, db):
         for info in db["result"]:
-            if info["product"]["devType"] == 2:
+            if info["product"]["devType"] in [0, 2]:
                 device = BullDevice(self, info)
                 self.device_list[device.unique_id] = device
 
@@ -154,7 +154,7 @@ class BullApi:
 
         def on_message(cb, client, userdata, msg):
             db = json.loads(msg.payload)
-            if db["method"] == "thing.properties":
+            if db.get("method") == "thing.properties":
                 iotId = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
