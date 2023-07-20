@@ -154,7 +154,7 @@ class BullApi:
 
         def on_message(cb, client, userdata, msg):
             db = json.loads(msg.payload)
-            if "method" in db and db["method"] == "thing.properties":
+            if db.get("method") == "thing.properties":
                 iotId = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
