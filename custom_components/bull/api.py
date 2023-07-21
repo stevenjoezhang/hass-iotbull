@@ -138,7 +138,7 @@ class BullApi:
 
     def parse_devices(self, db):
         for info in db["result"]:
-            if info["product"]["devType"] in [0, 2]:
+            if info["product"]["globalProductId"] in [4, 5, 6] or info["product"]["devType"] == 0:
                 device = BullDevice(self, info)
                 self.device_list[device.unique_id] = device
 
