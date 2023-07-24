@@ -8,6 +8,7 @@
 | 4 | G27智能一位开关(单火/zigbee) |
 | 5 | G27智能二位开关(单火/zigbee) |
 | 6 | G27智能三位开关(单火/zigbee) |
+| 13 | WiFi插座 |
 | 15 | G27智能一位无线开关(zigbee) |
 
 插件支持Home Assistant后台界面集成，无需配置yaml即可轻松将设备接入。
