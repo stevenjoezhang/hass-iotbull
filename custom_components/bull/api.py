@@ -9,6 +9,7 @@ from hashlib import sha256
 from urllib.parse import urljoin
 from functools import partial
 import json
+from typing import Callable
 
 import logging
 _LOGGER = logging.getLogger(__name__)
@@ -66,14 +67,14 @@ class BullApi:
             "openid": self.openid
         }
 
-    def deserialize(self, data: dict):
+    def deserialize(self, data: dict) -> None:
         self.username = data["username"]
         self.password = data["password"]
         self.access_token = data["access_token"]
         self.refresh_token = data["refresh_token"]
         self.openid = data["openid"]
 
-    async def async_login(self, username, password):
+    async def async_login(self, username: str, password: str) -> None:
         res = await self.async_make_request("POST", "/v1/auth/form",
                                             "application/x-www-form-urlencoded; charset=utf-8",
                                             {
@@ -95,7 +96,7 @@ class BullApi:
             self.refresh_token = res["result"]["refresh_token"]
             self.openid = str(res["result"]["openid"])
 
-    async def async_refresh_access_token(self):
+    async def async_refresh_access_token(self) -> None:
         """Obtain a valid access token."""
         payload = f"client_id=paascloudclientuic&client_secret=paascloudClientSecret&grant_type=refresh_token&refresh_token={self.refresh_token}"
         res = await self.async_make_request(
@@ -111,7 +112,7 @@ class BullApi:
             self.access_token = res["result"]["access_token"]
             self.refresh_token = res["result"]["refresh_token"]
 
-    async def async_get_devices_list(self, double_fault=False):
+    async def async_get_devices_list(self, double_fault=False) -> None:
         """Obtain the list of devices associated to a user."""
         res = await self.async_make_request(
             "GET", "/v2/home/devices", "application/json", {
@@ -136,13 +137,13 @@ class BullApi:
         else:
             self.parse_devices(res)
 
-    def parse_devices(self, db):
+    def parse_devices(self, db) -> None:
         for info in db["result"]:
             if info["product"]["globalProductId"] in [4, 5, 6] or info["product"]["devType"] == 0:
                 device = BullDevice(self, info)
                 self.device_list[device.unique_id] = device
 
-    async def init_mqtt(self):
+    async def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid
 
         def on_connect(client, userdata, flags, rc):
@@ -152,7 +153,7 @@ class BullApi:
                 'clientId': clientId, 'userId': self.openid}, 'version': '1.0'}
             client.publish("/sys/app/up/account/bind", json.dumps(payload))
 
-        def on_message(cb, client, userdata, msg):
+        def on_message(cb: Callable[[str, str, int]], client, userdata, msg):
             db = json.loads(msg.payload)
             if db.get("method") == "thing.properties":
                 iotId = db["params"]["iotId"]
@@ -168,17 +169,17 @@ class BullApi:
         client.loop_start()
         self.client = client
 
-    def stop_mqtt(self):
+    def stop_mqtt(self) -> None:
         if self.client:
             self.client.loop_stop()
 
-    def on_message(self, iotId, identifier, value: int):
+    def on_message(self, iotId: str, identifier: str, value: int) -> None:
         unique_id = iotId + "." + identifier
         device = self.device_list.get(unique_id)
         if device:
             device.update_dp(value)
 
-    async def set_property(self, iotId, identifier, value, double_fault=False):
+    async def set_property(self, iotId: str, identifier: str, value: int, double_fault=False) -> None:
         res = await self.async_make_request(
             "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
@@ -204,7 +205,7 @@ class BullApi:
             else:
                 raise Exception("set_property_error")
 
-    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str):
+    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str) -> dict:
         """Perform requests."""
         url = urljoin(API_URL, path)
         date = datetime.now().strftime("%a, %-d %b %Y %H:%M:%S GMT+8")
