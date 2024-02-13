@@ -113,7 +113,10 @@ class BullApi:
             self.refresh_token = res["result"]["refresh_token"]
 
     async def async_get_devices_list(self, double_fault=False) -> None:
-        """Obtain the list of devices associated to a user."""
+        """Obtain the list of devices associated to a user.
+        This API will only load devices from the home that the user opens in the app.
+        If the user has multiple homes (for example, shared by other users), then not all devices can be loaded.
+        """
         res = await self.async_make_request(
             "GET", "/v2/home/devices", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
@@ -153,7 +156,7 @@ class BullApi:
                 'clientId': clientId, 'userId': self.openid}, 'version': '1.0'}
             client.publish("/sys/app/up/account/bind", json.dumps(payload))
 
-        def on_message(cb: Callable[[str, str, int]], client, userdata, msg):
+        def on_message(cb, client, userdata, msg):
             db = json.loads(msg.payload)
             if db.get("method") == "thing.properties":
                 iotId = db["params"]["iotId"]

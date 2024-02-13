@@ -16,7 +16,7 @@ class FakeHass:
 
 async def test():
     bull_api = BullApi(FakeHass())
-    await bull_api.async_login(os.environ.get('USERNAME'), os.environ.get('PASSWORD'))
+    await bull_api.async_login(os.environ.get('BULLUSERNAME'), os.environ.get('BULLPASSWORD'))
     await bull_api.async_get_devices_list()
 
 if __name__ == '__main__':
