@@ -15,8 +15,10 @@ class FakeHass:
         return cb()
 
 async def test():
+    username = input('请输入您的用户名: ')
+    password = input('请输入您的密码: ')
     bull_api = BullApi(FakeHass())
-    await bull_api.async_login(os.environ.get('BULLUSERNAME'), os.environ.get('BULLPASSWORD'))
+    await bull_api.async_login(username, password)
     await bull_api.async_get_devices_list()
 
 if __name__ == '__main__':
