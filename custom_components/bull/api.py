@@ -1,4 +1,4 @@
-from .const import APPSECRET, API_URL
+from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID
 import requests
 import paho.mqtt.client as mqtt
 from datetime import datetime
@@ -16,30 +16,47 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BullDevice:
+    """A class to represent a Bull IoT device, binds to iotId.
+    In some cases, a single device may contain multiple switches.
+    They share the same BullDevice object but have different identifiers."""
     def __init__(self, cloud, info) -> None:
         self._iotId = info["iotId"]
-        self._identifier = info["elementIdentifier"]
-        self._value: int = info["property"][self._identifier]["value"]
         self._cloud = cloud
+        self._global_product_id = info["product"]["globalProductId"]
 
-        self.name = info["roomName"] + info["nickName"]
-        self.unique_id = self._iotId + "." + self._identifier
-        self.entity = None
+    async def set_dp(self, identifier: str, prop: bool):
+        await self._cloud.set_property(self._iotId, identifier, int(prop))
 
-    @property
-    def is_on(self) -> bool:
-        """Check if Bull IoT switch is on."""
-        return self._value
-
-    async def set_dp(self, prop: bool):
-        await self._cloud.set_property(self._iotId, self._identifier, int(prop))
-
-    def update_dp(self, prop: int):
-        self._value = prop
+    def update_dp(self, identifier: str, prop: int):
+        # self._value = prop
         if self.entity:
             self.entity.async_write_ha_state()
         _LOGGER.debug("Update device property: %s %s %d",
                       self._iotId, self._identifier, self._value)
+
+class BullSwitch(BullDevice):
+    def __init__(self, cloud, info) -> None:
+        super().__init__(cloud, info)
+        # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
+        # Key is identifier, value is 1 / 0 (indicating switch on / off)
+        self._identifier_values = {}
+        # Key is identifier, value is name (e.g. "客厅吊灯")
+        self._identifier_names = {}
+        # Key is identifier, value is entity
+        self._entities = {}
+
+    def update_dp(self, identifier: str, prop: int):
+        self._identifier_values[identifier] = prop
+        entity = self._entities.get(identifier)
+        if entity:
+            entity.async_write_ha_state()
+        _LOGGER.debug("Update device property: %s %s %d",
+                      self._iotId, self._identifier, self._value)
+
+
+class BullCover(BullDevice):
+    def __init__(self, cloud, info) -> None:
+        super().__init__(cloud, info)
 
 
 class BullApi:
@@ -151,9 +168,16 @@ class BullApi:
 
     def parse_devices(self, db) -> None:
         for info in db["result"]:
-            if info["product"]["globalProductId"] in [4, 5, 6, 13, 34, 35, 36]:
-                device = BullDevice(self, info)
-                self.device_list[device.unique_id] = device
+            if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID:
+                if self.device_list.get(info["iotId"]):
+                    device = self.device_list[info["iotId"]]
+                else:
+                    device = BullSwitch(self, info)
+                    self.device_list[device._iotId] = device
+                device._identifier_values[info["elementIdentifier"]] = info["property"][info["elementIdentifier"]]["value"]
+                device._identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+            elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
+                pass
 
     async def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid
@@ -186,10 +210,9 @@ class BullApi:
             self.client.loop_stop()
 
     def on_message(self, iotId: str, identifier: str, value: int) -> None:
-        unique_id = iotId + "." + identifier
-        device = self.device_list.get(unique_id)
+        device = self.device_list.get(iotId)
         if device:
-            device.update_dp(value)
+            device.update_dp(identifier, value)
 
     async def set_property(self, iotId: str, identifier: str, value: int) -> None:
         try:
