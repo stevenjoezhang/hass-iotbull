@@ -2,7 +2,7 @@
   "domain": "bull",
   "name": "Bull IoT",
   "version": "0.0.1",
-  "documentation": "https://github.com/stevenjoezhang/iotbull/",
+  "documentation": "https://github.com/stevenjoezhang/hass-iotbull/",
   "requirements": [
     "paho-mqtt==1.6.1"
   ],
@@ -10,7 +10,7 @@
   "codeowners": [
     "@stevenjoezhang"
   ],
-  "issue_tracker": "https://github.com/stevenjoezhang/iotbull/issues",
+  "issue_tracker": "https://github.com/stevenjoezhang/hass-iotbull/issues",
   "config_flow": true,
   "iot_class": "cloud_polling"
 }
