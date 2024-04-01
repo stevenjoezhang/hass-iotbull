@@ -21,7 +21,7 @@ async def test():
     await bull_api.async_login(username, password)
     await bull_api.async_get_families()
     for family in bull_api.families:
-        print(family["familyId"])
+        print(family)
         await bull_api.async_switch_family(family["familyId"])
         await bull_api.async_get_devices_list()
     print(bull_api.device_list)

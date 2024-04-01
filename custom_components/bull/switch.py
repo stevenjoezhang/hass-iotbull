@@ -59,7 +59,7 @@ async def async_setup_entry(
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
         if device._global_product_id in SWITCH_PRODUCT_ID:
-            for identifier in device._identifiers:
+            for identifier in device._identifier_values:
                 entities.append(PowerSwitch(device, identifier))
 
     async_add_entities(entities, update_before_add=False)

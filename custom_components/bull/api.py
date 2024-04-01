@@ -28,11 +28,10 @@ class BullDevice:
         await self._cloud.set_property(self._iotId, identifier, int(prop))
 
     def update_dp(self, identifier: str, prop: int):
-        # self._value = prop
         if self.entity:
             self.entity.async_write_ha_state()
         _LOGGER.debug("Update device property: %s %s %d",
-                      self._iotId, self._identifier, self._value)
+                      self._iotId, identifier, prop)
 
 class BullSwitch(BullDevice):
     def __init__(self, cloud, info) -> None:
@@ -51,7 +50,7 @@ class BullSwitch(BullDevice):
         if entity:
             entity.async_write_ha_state()
         _LOGGER.debug("Update device property: %s %s %d",
-                      self._iotId, self._identifier, self._value)
+                      self._iotId, identifier, prop)
 
 
 class BullCover(BullDevice):
