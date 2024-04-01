@@ -70,6 +70,7 @@ class BullApi:
             self.access_token = None
             self.refresh_token = None
             self.openid: str = None
+            self.selected_families = []
         self.device_list = {}
         self.families = []
 
@@ -82,15 +83,20 @@ class BullApi:
             "password": self.password,
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
-            "openid": self.openid
+            "openid": self.openid,
+            "selected_families": self.selected_families
         }
 
     def deserialize(self, data: dict) -> None:
-        self.username = data["username"]
-        self.password = data["password"]
-        self.access_token = data["access_token"]
-        self.refresh_token = data["refresh_token"]
-        self.openid = data["openid"]
+        self.username = data.get("username")
+        self.password = data.get("password")
+        self.access_token = data.get("access_token")
+        self.refresh_token = data.get("refresh_token")
+        self.openid = data.get("openid")
+        self.selected_families = data.get("selected_families")
+
+    def select_family(self, selected_families):
+        self.selected_families = selected_families
 
     async def async_login(self, username: str, password: str) -> None:
         res = await self.async_make_request("POST", "/v1/auth/form",
@@ -142,7 +148,7 @@ class BullApi:
         except Exception:
             raise Exception("get_families_error")
 
-    async def async_switch_family(self, familyId) -> None:
+    async def async_switch_family(self, familyId: int) -> None:
         """Switch the family associated to a user."""
         try:
             res = await self.async_make_request(
@@ -154,8 +160,8 @@ class BullApi:
 
     async def async_get_devices_list(self) -> None:
         """Obtain the list of devices associated to a user.
-        This API will only load devices from the home that the user opens in the app.
-        If the user has multiple homes (for example, shared by other users), then not all devices can be loaded.
+        This API will only load devices from the family that the user last visited.
+        If the user has multiple families (for example, shared by other users), then not all devices can be loaded.
         """
         try:
             res = await self.async_make_request(
@@ -165,6 +171,19 @@ class BullApi:
             self.parse_devices(res)
         except Exception:
             raise Exception("get_devices_error")
+
+    async def async_get_all_devices_list(self) -> None:
+        """Obtain the list of all devices associated to a user.
+        It will swith family and load device list based on user configuration.
+        """
+        # Support old configuration: no selected_families given
+        if not self.selected_families:
+            await self.async_get_families()
+            self.selected_families = [family["familyId"] for family in self.families]
+
+        for familyId in self.selected_families:
+            await self.async_switch_family(familyId)
+            await self.async_get_devices_list()
 
     def parse_devices(self, db) -> None:
         for info in db["result"]:

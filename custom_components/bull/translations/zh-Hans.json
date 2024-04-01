@@ -15,6 +15,14 @@
                 },
                 "description": "",
                 "title": "登录公牛智家账号"
+            },
+            "select_family": {
+                "data": {
+                    "families": "家庭列表",
+                    "family_with_devices": "{family_name}（{device_count}台设备）"
+                },
+                "description": "你可以在下面的输入框中勾选家庭，所选家庭中的设备将被接入。",
+                "title": "添加家庭"
             }
         },
         "title": "Bull IoT"
