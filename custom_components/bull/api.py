@@ -54,6 +54,7 @@ class BullApi:
             self.refresh_token = None
             self.openid: str = None
         self.device_list = {}
+        self.families = []
 
     def destroy(self) -> None:
         self.stop_mqtt()
@@ -112,33 +113,41 @@ class BullApi:
             self.access_token = res["result"]["access_token"]
             self.refresh_token = res["result"]["refresh_token"]
 
-    async def async_get_devices_list(self, double_fault=False) -> None:
+    async def async_get_families(self) -> None:
+        """Obtain the list of families associated to a user."""
+        try:
+            res = await self.async_make_request(
+                "GET", "/v2/families", "application/json", {
+                    "Authorization": f"Bearer {self.access_token}"
+                }, "")
+            self.families = res["result"]
+
+        except Exception:
+            raise Exception("get_families_error")
+
+    async def async_switch_family(self, familyId) -> None:
+        """Switch the family associated to a user."""
+        try:
+            res = await self.async_make_request(
+                "POST", f"/v1/families/{familyId}/switch", "application/json", {
+                    "Authorization": f"Bearer {self.access_token}"
+                }, "{}")
+        except Exception:
+            raise Exception("switch_family_error")
+
+    async def async_get_devices_list(self) -> None:
         """Obtain the list of devices associated to a user.
         This API will only load devices from the home that the user opens in the app.
         If the user has multiple homes (for example, shared by other users), then not all devices can be loaded.
         """
-        res = await self.async_make_request(
-            "GET", "/v2/home/devices", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "")
-
-        if not res.get("success"):
-            if res.get("error") == "invalid_token":
-                if not double_fault:
-                    await self.async_refresh_access_token()
-                    await self.async_get_devices_list(True)
-                else:
-                    raise Exception("invalid_token")
-            elif res.get("code") == 9008:
-                if not double_fault:
-                    await self.async_login(self.username, self.password)
-                    await self.async_get_devices_list(True)
-                else:
-                    raise Exception("invalid_token")
-            else:
-                raise Exception("get_devices_error")
-        else:
+        try:
+            res = await self.async_make_request(
+                "GET", "/v2/home/devices", "application/json", {
+                    "Authorization": f"Bearer {self.access_token}"
+                }, "")
             self.parse_devices(res)
+        except Exception:
+            raise Exception("get_devices_error")
 
     def parse_devices(self, db) -> None:
         for info in db["result"]:
@@ -182,33 +191,21 @@ class BullApi:
         if device:
             device.update_dp(value)
 
-    async def set_property(self, iotId: str, identifier: str, value: int, double_fault=False) -> None:
-        res = await self.async_make_request(
-            "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, json.dumps([
-                {
-                    "value": value,
-                    "identifier": identifier
-                }
-            ]))
-        if not res.get("success"):
-            if res.get("error") == "invalid_token":
-                if not double_fault:
-                    await self.async_refresh_access_token()
-                    await self.set_property(iotId, identifier, value, True)
-                else:
-                    raise Exception("invalid_token")
-            elif res.get("code") == 9008:
-                if not double_fault:
-                    await self.async_login(self.username, self.password)
-                    await self.async_get_devices_list(True)
-                else:
-                    raise Exception("invalid_token")
-            else:
-                raise Exception("set_property_error")
+    async def set_property(self, iotId: str, identifier: str, value: int) -> None:
+        try:
+            res = await self.async_make_request(
+                "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
+                    "Authorization": f"Bearer {self.access_token}"
+                }, json.dumps([
+                    {
+                        "value": value,
+                        "identifier": identifier
+                    }
+                ]))
+        except Exception:
+            raise Exception("set_property_error")
 
-    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str) -> dict:
+    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str, double_fault=False) -> dict:
         """Perform requests."""
         url = urljoin(API_URL, path)
         date = datetime.now().strftime("%a, %-d %b %Y %H:%M:%S GMT+8")
@@ -254,6 +251,22 @@ class BullApi:
             res = json.loads(response.content)
         except Exception:
             raise Exception("connection_failed")
+
+        if not res.get("success"):
+            if res.get("error") == "invalid_token":
+                if not double_fault:
+                    await self.async_refresh_access_token()
+                    res = await self.async_make_request(method, path, content_type, header, body, True)
+                else:
+                    raise Exception("invalid_token")
+            elif res.get("code") == 9008:
+                if not double_fault:
+                    await self.async_login(self.username, self.password)
+                    res = await self.async_make_request(method, path, content_type, header, body, True)
+                else:
+                    raise Exception("invalid_token")
+            else:
+                raise Exception("make_request_error")
 
         _LOGGER.debug("Request: %s %s",
                       path, response.content)

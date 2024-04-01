@@ -19,7 +19,12 @@ async def test():
     password = input('请输入您的密码: ')
     bull_api = BullApi(FakeHass())
     await bull_api.async_login(username, password)
-    await bull_api.async_get_devices_list()
+    await bull_api.async_get_families()
+    for family in bull_api.families:
+        print(family["familyId"])
+        await bull_api.async_switch_family(family["familyId"])
+        await bull_api.async_get_devices_list()
+    print(bull_api.device_list)
 
 if __name__ == '__main__':
     asyncio.run(test())
