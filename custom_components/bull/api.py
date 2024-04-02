@@ -293,6 +293,9 @@ class BullApi:
         except Exception:
             raise Exception("connection_failed")
 
+        _LOGGER.debug("Request: %s %s",
+                      path, response.content)
+
         if not res.get("success"):
             if res.get("error") == "invalid_token":
                 if not double_fault:
@@ -306,9 +309,5 @@ class BullApi:
                     res = await self.async_make_request(method, path, content_type, header, body, True)
                 else:
                     raise Exception("invalid_token")
-            else:
-                raise Exception("make_request_error")
 
-        _LOGGER.debug("Request: %s %s",
-                      path, response.content)
         return res
