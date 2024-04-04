@@ -41,6 +41,11 @@ class BullCoverEntity(CoverEntity):
         return self._device.available
 
     @property
+    def current_cover_position(self) -> int:
+        """Return the current position of cover where 0 means closed and 100 is fully open."""
+        return self._device._identifier_values["curtainPosition"]
+
+    @property
     def is_closed(self) -> bool:
         """Return if the cover is closed."""
         return self._device._identifier_values["curtainPosition"] == 0
