@@ -24,12 +24,19 @@ class BullDevice:
         self._cloud = cloud
         self._global_product_id = info["product"]["globalProductId"]
         self._official_product_name = info["deviceInfoVo"]["nickName"]
+        # Key is identifier, value is int, float or string
+        # int 1 / 0 (indicating switch on / off etc.)
+        # float (indicating socket power etc.)
+        # string (indication device online etc.)
         self._identifier_values = {}
 
     @property
     def available(self) -> bool:
         """Return True if the device is available."""
-        return self._identifier_values["status"] == "ONLINE"
+        # status is ONLINE or OFFLINE from /v2/home/devices API
+        # It may change to int from thing.status mqtt message
+        # 1 - Online, 3 - Offline
+        return self._identifier_values["status"] in ["ONLINE", 1]
 
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self._iotId, identifier, prop)
@@ -41,7 +48,6 @@ class BullSwitch(BullDevice):
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
-        # Key is identifier, value is 1 / 0 (indicating switch on / off)
         # Key is identifier, value is name (e.g. "客厅吊灯")
         self._identifier_names = {}
         # Key is identifier, value is entity
@@ -223,20 +229,25 @@ class BullApi:
     async def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid
 
-        def on_connect(client, userdata, flags, rc):
-            _LOGGER.info(f"Connected with result code {rc}")
+        def on_connect(client, userdata, flags, rc: int):
+            _LOGGER.info("Connected with result code: %d", rc)
             # client.subscribe("/sys/app/down/account/bind_reply")
             payload = {'id': 'msg_id_bind_85', 'params': {'token': self.access_token}, 'request': {
                 'clientId': clientId, 'userId': self.openid}, 'version': '1.0'}
             client.publish("/sys/app/up/account/bind", json.dumps(payload))
 
         def on_message(cb, client, userdata, msg):
+            _LOGGER.debug("MQTT message: %s", msg.payload)
             db = json.loads(msg.payload)
             if db.get("method") == "thing.properties":
                 iotId = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
                     cb(iotId, identifier, info["value"])
+            elif db.get("method") == "thing.status":
+                iotId = db["params"]["iotId"]
+                info = db["params"]["status"]
+                cb(iotId, "status", info["value"])
 
         client = mqtt.Client(clientId)
         client.on_connect = on_connect
