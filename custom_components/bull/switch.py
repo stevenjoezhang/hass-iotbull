@@ -48,11 +48,11 @@ class BullSwitchEntity(SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
-        await self._device.set_dp(self._identifier, True)
+        await self._device.set_dp(self._identifier, 1)
 
     async def async_turn_off(self, **kwargs):
         """Turn Bull IoT switch off."""
-        await self._device.set_dp(self._identifier, False)
+        await self._device.set_dp(self._identifier, 0)
 
 
 async def async_setup_entry(

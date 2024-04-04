@@ -31,10 +31,10 @@ class BullDevice:
         """Return True if the device is available."""
         return self._identifier_values["status"] == "ONLINE"
 
-    async def set_dp(self, identifier: str, prop: bool):
-        await self._cloud.set_property(self._iotId, identifier, int(prop))
+    async def set_dp(self, identifier: str, prop: int):
+        await self._cloud.set_property(self._iotId, identifier, prop)
 
-    def update_dp(self, identifier: str, prop: int):
+    def update_dp(self, identifier: str, prop):
         pass
 
 class BullSwitch(BullDevice):
@@ -47,12 +47,12 @@ class BullSwitch(BullDevice):
         # Key is identifier, value is entity
         self._entities = {}
 
-    def update_dp(self, identifier: str, prop: int):
+    def update_dp(self, identifier: str, prop):
         self._identifier_values[identifier] = prop
         entity = self._entities.get(identifier)
         if entity:
             entity.async_write_ha_state()
-        _LOGGER.debug("Update device property: %s %s %d",
+        _LOGGER.debug("Update device property: %s %s %s",
                       self._iotId, identifier, prop)
 
 
@@ -62,15 +62,12 @@ class BullCover(BullDevice):
         self._name = None
         self._entity = None
 
-    async def set_dp(self, identifier: str, prop: bool):
-        await self._cloud.set_property(self._iotId, identifier, int(prop))
-
-    def update_dp(self, identifier: str, prop: int):
+    def update_dp(self, identifier: str, prop):
         self._identifier_values[identifier] = prop
         entity = self._entity
         if entity:
             entity.async_write_ha_state()
-        _LOGGER.debug("Update device property: %s %s %d",
+        _LOGGER.debug("Update device property: %s %s %s",
                       self._iotId, identifier, prop)
 
 
@@ -253,7 +250,7 @@ class BullApi:
         if self.client:
             self.client.loop_stop()
 
-    def on_message(self, iotId: str, identifier: str, value: int) -> None:
+    def on_message(self, iotId: str, identifier: str, value) -> None:
         device = self.device_list.get(iotId)
         if device:
             device.update_dp(identifier, value)

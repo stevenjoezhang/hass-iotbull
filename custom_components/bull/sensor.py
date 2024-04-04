@@ -3,7 +3,7 @@ from .api import BullDevice
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import POWER_WATT
+from homeassistant.const import UnitOfPower
 
 class BullSensorEntity(SensorEntity):
     def __init__(self, device: BullDevice, identifier: str):
@@ -31,7 +31,7 @@ class BullSensorEntity(SensorEntity):
     def name(self):
         # FIXME: may not work
         return f"{list(self._device._identifier_names.values())[0]}功率"
-    
+
     @property
     def available(self) -> bool:
         """Return True if the device is available."""
@@ -43,7 +43,7 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def unit_of_measurement(self):
-        return POWER_WATT
+        return UnitOfPower.WATT
 
 
 async def async_setup_entry(
