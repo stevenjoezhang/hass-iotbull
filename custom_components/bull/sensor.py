@@ -1,12 +1,12 @@
 from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
 from .api import BullDevice
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import POWER_WATT
 
-# https://developers.home-assistant.io/docs/core/entity/switch
-class BullSwitchEntity(SwitchEntity):
-    def __init__(self, device: BullDevice, identifier: str) -> None:
+class BullSensorEntity(SensorEntity):
+    def __init__(self, device: BullDevice, identifier: str):
         self._device = device
         self._identifier = identifier
         device._entities[identifier] = self
@@ -28,26 +28,17 @@ class BullSwitchEntity(SwitchEntity):
         return self._device._iotId + "." + self._identifier
 
     @property
-    def name(self) -> str:
-        return self._device._identifier_names[self._identifier]
+    def name(self):
+        # FIXME: may not work
+        return f"{list(self._device._identifier_names.values())[0]}功率"
 
     @property
-    def should_poll(self):
-        """Return if platform should poll for updates."""
-        return False
-
-    @property
-    def is_on(self) -> bool:
-        """Check if Bull IoT switch is on."""
+    def state(self):
         return self._device._identifier_values[self._identifier]
 
-    async def async_turn_on(self, **kwargs):
-        """Turn Bull IoT switch on."""
-        await self._device.set_dp(self._identifier, True)
-
-    async def async_turn_off(self, **kwargs):
-        """Turn Bull IoT switch off."""
-        await self._device.set_dp(self._identifier, False)
+    @property
+    def unit_of_measurement(self):
+        return POWER_WATT
 
 
 async def async_setup_entry(
@@ -59,7 +50,7 @@ async def async_setup_entry(
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
         if device._global_product_id in SWITCH_PRODUCT_ID:
-            for identifier in device._identifier_names:
-                entities.append(BullSwitchEntity(device, identifier))
+            if "RealTimePower" in device._identifier_values:
+                entities.append(BullSensorEntity(device, "RealTimePower"))
 
     async_add_entities(entities, update_before_add=False)

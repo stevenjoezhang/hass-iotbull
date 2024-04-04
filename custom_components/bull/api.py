@@ -23,22 +23,20 @@ class BullDevice:
         self._iotId = info["iotId"]
         self._cloud = cloud
         self._global_product_id = info["product"]["globalProductId"]
+        self._official_product_name = info["deviceInfoVo"]["nickName"]
+        self._identifier_values = {}
 
     async def set_dp(self, identifier: str, prop: bool):
         await self._cloud.set_property(self._iotId, identifier, int(prop))
 
     def update_dp(self, identifier: str, prop: int):
-        if self.entity:
-            self.entity.async_write_ha_state()
-        _LOGGER.debug("Update device property: %s %s %d",
-                      self._iotId, identifier, prop)
+        pass
 
 class BullSwitch(BullDevice):
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
         # Key is identifier, value is 1 / 0 (indicating switch on / off)
-        self._identifier_values = {}
         # Key is identifier, value is name (e.g. "客厅吊灯")
         self._identifier_names = {}
         # Key is identifier, value is entity
@@ -192,7 +190,9 @@ class BullApi:
                 else:
                     device = BullSwitch(self, info)
                     self.device_list[device._iotId] = device
-                device._identifier_values[info["elementIdentifier"]] = info["property"][info["elementIdentifier"]]["value"]
+                    for prop in info["property"].values():
+                        key = prop["identifier"]
+                        device._identifier_values[key] = prop["value"]
                 device._identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
             elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
                 pass
