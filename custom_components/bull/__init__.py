@@ -31,6 +31,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_task(
             hass.config_entries.async_forward_entry_setup(entry, "sensor"))
 
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(entry, "cover"))
+
         await bull_api.init_mqtt()
 
     hass.async_create_task(setup_entities(bull_api.device_list.keys()))

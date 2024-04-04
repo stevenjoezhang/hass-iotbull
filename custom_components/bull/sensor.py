@@ -20,7 +20,7 @@ class BullSensorEntity(SensorEntity):
             },
             "name": self._device._official_product_name,
             "manufacturer": "Bull",
-            "model": "Bull switch"
+            "model": self._device._official_product_name
         }
 
     @property
@@ -31,6 +31,11 @@ class BullSensorEntity(SensorEntity):
     def name(self):
         # FIXME: may not work
         return f"{list(self._device._identifier_names.values())[0]}功率"
+    
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available."""
+        return self._device.available
 
     @property
     def state(self):

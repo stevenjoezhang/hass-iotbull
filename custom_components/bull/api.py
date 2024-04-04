@@ -26,6 +26,11 @@ class BullDevice:
         self._official_product_name = info["deviceInfoVo"]["nickName"]
         self._identifier_values = {}
 
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available."""
+        return self._identifier_values["status"] == "ONLINE"
+
     async def set_dp(self, identifier: str, prop: bool):
         await self._cloud.set_property(self._iotId, identifier, int(prop))
 
@@ -54,6 +59,19 @@ class BullSwitch(BullDevice):
 class BullCover(BullDevice):
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
+        self._name = None
+        self._entity = None
+
+    async def set_dp(self, identifier: str, prop: bool):
+        await self._cloud.set_property(self._iotId, identifier, int(prop))
+
+    def update_dp(self, identifier: str, prop: int):
+        self._identifier_values[identifier] = prop
+        entity = self._entity
+        if entity:
+            entity.async_write_ha_state()
+        _LOGGER.debug("Update device property: %s %s %d",
+                      self._iotId, identifier, prop)
 
 
 class BullApi:
@@ -195,7 +213,15 @@ class BullApi:
                         device._identifier_values[key] = prop["value"]
                 device._identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
             elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
-                pass
+                if self.device_list.get(info["iotId"]):
+                    device = self.device_list[info["iotId"]]
+                else:
+                    device = BullCover(self, info)
+                    self.device_list[device._iotId] = device
+                    for prop in info["property"].values():
+                        key = prop["identifier"]
+                        device._identifier_values[key] = prop["value"]
+                device._name = info["roomName"] + info["nickName"]
 
     async def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid

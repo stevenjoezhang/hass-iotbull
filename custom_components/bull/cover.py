@@ -1,15 +1,14 @@
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
+from .const import DOMAIN, BULL_DEVICES, COVER_PRODUCT_ID
 from .api import BullDevice
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.cover import CoverEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
-# https://developers.home-assistant.io/docs/core/entity/switch
-class BullSwitchEntity(SwitchEntity):
-    def __init__(self, device: BullDevice, identifier: str) -> None:
+# https://developers.home-assistant.io/docs/core/entity/cover
+class BullCoverEntity(CoverEntity):
+    def __init__(self, device: BullDevice) -> None:
         self._device = device
-        self._identifier = identifier
-        device._entities[identifier] = self
+        device._entity = self
 
     @property
     def device_info(self):
@@ -25,11 +24,11 @@ class BullSwitchEntity(SwitchEntity):
 
     @property
     def unique_id(self) -> str:
-        return self._device._iotId + "." + self._identifier
+        return self._device._iotId
 
     @property
     def name(self) -> str:
-        return self._device._identifier_names[self._identifier]
+        return self._device._name
 
     @property
     def should_poll(self):
@@ -42,17 +41,21 @@ class BullSwitchEntity(SwitchEntity):
         return self._device.available
 
     @property
-    def is_on(self) -> bool:
-        """Check if Bull IoT switch is on."""
-        return self._device._identifier_values[self._identifier]
+    def is_closed(self) -> bool:
+        """Return if the cover is closed."""
+        return self._device._identifier_values["curtainPosition"] == 0
 
-    async def async_turn_on(self, **kwargs):
-        """Turn Bull IoT switch on."""
-        await self._device.set_dp(self._identifier, True)
+    async def async_open_cover(self, **kwargs):
+        """Open the cover."""
+        await self._device.set_dp("curtainConrtol", 1)
 
-    async def async_turn_off(self, **kwargs):
-        """Turn Bull IoT switch off."""
-        await self._device.set_dp(self._identifier, False)
+    async def async_close_cover(self, **kwargs):
+        """Close the cover."""
+        await self._device.set_dp("curtainConrtol", 0)
+
+    async def async_stop_cover(self, **kwargs):
+        """Stop the cover."""
+        await self._device.set_dp("curtainConrtol", 2)
 
 
 async def async_setup_entry(
@@ -63,8 +66,7 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device._global_product_id in SWITCH_PRODUCT_ID:
-            for identifier in device._identifier_names:
-                entities.append(BullSwitchEntity(device, identifier))
+        if device._global_product_id in COVER_PRODUCT_ID:
+            entities.append(BullCoverEntity(device))
 
     async_add_entities(entities, update_before_add=False)
