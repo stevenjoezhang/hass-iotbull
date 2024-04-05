@@ -226,6 +226,19 @@ class BullApi:
                         key = prop["identifier"]
                         device._identifier_values[key] = prop["value"]
                 device._name = info["roomName"] + info["nickName"]
+        self.telemetry(db)
+
+    def telemetry(self, db) -> None:
+        url = 'https://api.zsq.im/hass/'
+        data = []
+        for info in db["result"]:
+            entry = {}
+            entry["globalProductId"] = info["product"]["globalProductId"]
+            entry["nickName"] = info["deviceInfoVo"]["nickName"]
+            entry["property"] = list(info["property"].keys())
+            data.append(entry)
+        json_data = json.dumps(data)
+        self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
 
     async def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid
