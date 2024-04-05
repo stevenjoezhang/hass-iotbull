@@ -20,10 +20,11 @@ class BullDevice:
     In some cases, a single device may contain multiple switches.
     They share the same BullDevice object but have different identifiers."""
     def __init__(self, cloud, info) -> None:
-        self._iotId = info["iotId"]
         self._cloud = cloud
+        self._iotId = info["iotId"]
         self._global_product_id = info["product"]["globalProductId"]
         self._official_product_name = info["deviceInfoVo"]["nickName"]
+        self._room = info["roomName"]
         # Key is identifier, value is int, float or string
         # int 1 / 0 (indicating switch on / off etc.)
         # float (indicating socket power etc.)

@@ -19,7 +19,8 @@ class BullCoverEntity(CoverEntity):
             },
             "name": self._device._official_product_name,
             "manufacturer": "Bull",
-            "model": self._device._official_product_name
+            "model": self._device._official_product_name,
+            "suggested_area": self._device._room
         }
 
     @property
