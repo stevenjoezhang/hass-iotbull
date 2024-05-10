@@ -80,7 +80,7 @@ class BullSwitch(BullDevice):
         self._identifier_values[identifier] = prop
         entity = self._entities.get(identifier)
         if entity:
-            entity.async_write_ha_state()
+            entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s",
                       self._iotId, identifier, prop)
 
@@ -95,7 +95,7 @@ class BullCover(BullDevice):
         self._identifier_values[identifier] = prop
         entity = self._entity
         if entity:
-            entity.async_write_ha_state()
+            entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s",
                       self._iotId, identifier, prop)
 
