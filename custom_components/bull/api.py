@@ -14,6 +14,28 @@ from typing import Callable
 import logging
 _LOGGER = logging.getLogger(__name__)
 
+class InvalidTokenError(Exception):
+    pass
+
+class LoginRequiredError(Exception):
+    pass
+
+def retry(func):
+    async def wrapper(self, *args, **kwargs):
+        attempts = 0
+        try:
+            res = await func(self, *args, **kwargs)
+            return res
+        except InvalidTokenError as e:
+            await self.async_refresh_access_token()
+            res = await func(self, *args, **kwargs)
+            return res
+        except LoginRequiredError as e:
+            await self.async_login(self.username, self.password)
+            res = await func(self, *args, **kwargs)
+            return res
+        return None
+    return wrapper
 
 class BullDevice:
     """A class to represent a Bull IoT device, binds to iotId.
@@ -139,57 +161,44 @@ class BullApi:
             self.refresh_token = res["result"]["refresh_token"]
             self.openid = str(res["result"]["openid"])
 
+    @retry
     async def async_refresh_access_token(self) -> None:
         """Obtain a valid access token."""
         payload = f"client_id=paascloudclientuic&client_secret=paascloudClientSecret&grant_type=refresh_token&refresh_token={self.refresh_token}"
         res = await self.async_make_request(
             "POST", "/v1/auth/token", "application/x-www-form-urlencoded", {}, payload)
 
-        if not res["success"]:
-            # {"code":9008,"message":"请重新登录","result":null,"success":false}
-            if res["code"] == 9008:
-                await self.async_login(self.username, self.password)
-            else:
-                raise Exception("refresh_token_error")
-        else:
-            self.access_token = res["result"]["access_token"]
-            self.refresh_token = res["result"]["refresh_token"]
+        self.access_token = res["result"]["access_token"]
+        self.refresh_token = res["result"]["refresh_token"]
 
+    @retry
     async def async_get_families(self) -> None:
         """Obtain the list of families associated to a user."""
-        try:
-            res = await self.async_make_request(
-                "GET", "/v2/families", "application/json", {
-                    "Authorization": f"Bearer {self.access_token}"
-                }, "")
-            self.families = res["result"]
+        res = await self.async_make_request(
+            "GET", "/v2/families", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, "")
+        self.families = res["result"]
 
-        except Exception:
-            raise Exception("get_families_error")
-
+    @retry
     async def async_switch_family(self, familyId: int) -> None:
         """Switch the family associated to a user."""
-        try:
-            res = await self.async_make_request(
-                "POST", f"/v1/families/{familyId}/switch", "application/json", {
-                    "Authorization": f"Bearer {self.access_token}"
-                }, "{}")
-        except Exception:
-            raise Exception("switch_family_error")
+        await self.async_make_request(
+            "POST", f"/v1/families/{familyId}/switch", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, "{}")
 
+    @retry
     async def async_get_devices_list(self) -> None:
         """Obtain the list of devices associated to a user.
         This API will only load devices from the family that the user last visited.
         If the user has multiple families (for example, shared by other users), then not all devices can be loaded.
         """
-        try:
-            res = await self.async_make_request(
-                "GET", "/v2/home/devices", "application/json", {
-                    "Authorization": f"Bearer {self.access_token}"
-                }, "")
-            self.parse_devices(res)
-        except Exception:
-            raise Exception("get_devices_error")
+        res = await self.async_make_request(
+            "GET", "/v2/home/devices", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, "")
+        self.parse_devices(res)
 
     async def async_get_all_devices_list(self) -> None:
         """Obtain the list of all devices associated to a user.
@@ -229,7 +238,7 @@ class BullApi:
         self.telemetry(db)
 
     def telemetry(self, db) -> None:
-        url = 'https://api.zsq.im/hass/'
+        url = "https://api.zsq.im/hass/"
         data = []
         for info in db["result"]:
             entry = {}
@@ -281,20 +290,17 @@ class BullApi:
             device.update_dp(identifier, value)
 
     async def set_property(self, iotId: str, identifier: str, value: int) -> None:
-        try:
-            res = await self.async_make_request(
-                "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
-                    "Authorization": f"Bearer {self.access_token}"
-                }, json.dumps([
-                    {
-                        "value": value,
-                        "identifier": identifier
-                    }
-                ]))
-        except Exception:
-            raise Exception("set_property_error")
+        res = await self.async_make_request(
+            "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, json.dumps([
+                {
+                    "value": value,
+                    "identifier": identifier
+                }
+            ]))
 
-    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str, double_fault=False) -> dict:
+    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str) -> dict:
         """Perform requests."""
         url = urljoin(API_URL, path)
         date = datetime.now().strftime("%a, %-d %b %Y %H:%M:%S GMT+8")
@@ -337,25 +343,18 @@ class BullApi:
         try:
             response = await self._hass.async_add_executor_job(func)
 
-            res = json.loads(response.content)
+            _LOGGER.debug("Request: %s %s %s",
+                      path, response.status_code, response.content)
+
+            res = response.json()
         except Exception:
             raise Exception("connection_failed")
 
-        _LOGGER.debug("Request: %s %s",
-                      path, response.content)
-
         if not res.get("success"):
             if res.get("error") == "invalid_token":
-                if not double_fault:
-                    await self.async_refresh_access_token()
-                    res = await self.async_make_request(method, path, content_type, header, body, True)
-                else:
-                    raise Exception("invalid_token")
+                raise InvalidTokenError
+            # {"code":9008,"message":"请重新登录","result":null,"success":false}
             elif res.get("code") == 9008:
-                if not double_fault:
-                    await self.async_login(self.username, self.password)
-                    res = await self.async_make_request(method, path, content_type, header, body, True)
-                else:
-                    raise Exception("invalid_token")
+                raise LoginRequiredError
 
         return res
