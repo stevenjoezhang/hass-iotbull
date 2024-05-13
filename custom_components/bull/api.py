@@ -347,7 +347,8 @@ class BullApi:
                       path, response.status_code, response.content)
 
             res = response.json()
-        except Exception:
+        except Exception as e:
+            _LOGGER.error("Request failed: %s %s", path, e)
             raise Exception("connection_failed")
 
         if not res.get("success"):
