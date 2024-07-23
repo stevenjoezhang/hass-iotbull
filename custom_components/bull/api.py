@@ -108,10 +108,10 @@ class BullApi:
         else:
             self.username = None
             self.password = None
-            self.access_token = None
-            self.refresh_token = None
-            self.openid: str = None
             self.selected_families = []
+        self.access_token = None
+        self.refresh_token = None
+        self.openid: str = None
         self.device_list = {}
         self.families = []
 
@@ -122,18 +122,12 @@ class BullApi:
         return {
             "username": self.username,
             "password": self.password,
-            "access_token": self.access_token,
-            "refresh_token": self.refresh_token,
-            "openid": self.openid,
             "selected_families": self.selected_families
         }
 
     def deserialize(self, data: dict) -> None:
         self.username = data.get("username")
         self.password = data.get("password")
-        self.access_token = data.get("access_token")
-        self.refresh_token = data.get("refresh_token")
-        self.openid = data.get("openid")
         self.selected_families = data.get("selected_families")
 
     def select_family(self, selected_families):
