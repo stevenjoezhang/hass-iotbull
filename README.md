@@ -1,5 +1,7 @@
 # Bull IoT for Home Assistant
 
+[![通过HACS添加集成](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration)
+
 本插件实现了公牛智家协议的规范，可将公牛智家设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示实时功率。
 
 目前测试已支持的公牛智家设备包括：
