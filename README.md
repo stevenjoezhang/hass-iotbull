@@ -1,10 +1,10 @@
-# Bull IoT for Home Assistant
+# MosHome (Bull IoT) for Home Assistant
 
 [![通过HACS添加集成](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration)
 
-本插件实现了公牛智家协议的规范，可将公牛智家设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示实时功率。
+本插件实现了MosHome（公牛智家）协议的规范，可将公牛智能设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示实时功率。
 
-目前测试已支持的公牛智家设备包括：
+目前测试已支持的公牛智能设备包括：
 
 | globalProductId | nickName |
 | - | - |
@@ -29,9 +29,9 @@
 
 ## 配置方式
 
-首先在手机上下载「公牛智家」App，并按照提示将家中的公牛智家设备（包括开关和网关等）接入网络。如果您是使用手机验证码的方式登录的「公牛智家」App，还需要为账户设置密码，因为本插件目前只支持通过用户名和密码登录。
+首先在手机上下载「MosHome（公牛智家）」App，并按照提示将家中的公牛智能设备（包括开关和网关等）接入网络。如果您是使用手机验证码的方式登录的App，还需要为账户设置密码，因为本插件目前只支持通过用户名和密码登录。
 
-添加设备后，您可以在「公牛智家」App中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本插件能够自动读取相关信息并显示在Home Assistant中。
+添加设备后，您可以在App中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本插件能够自动读取相关信息并显示在Home Assistant中。
 
 在配置完成后，将本仓库安装到Home Assistant。具体方法是，先克隆这个仓库到部署Home Assistant的主机上：
 
