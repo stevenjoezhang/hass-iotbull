@@ -2,7 +2,7 @@
 
 [![通过HACS添加集成](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration)
 
-本插件实现了MosHome（公牛智家）协议的规范，可将公牛智能设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示实时功率。
+本插件实现了 MosHome（公牛智家）协议的规范，可将公牛智能设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示实时功率。
 
 目前测试已支持的公牛智能设备包括：
 
@@ -22,30 +22,31 @@
 | 34 | G55智能开关(一位零火) |
 | 35 | G55智能开关(二位零火) |
 | 36 | G55智能开关(三位零火) |
+| 180 | 大师轨道插座至尊款 |
 
-如果您使用的设备不在列表中，欢迎提交Issue或Pull Request。
+如果您使用的设备不在列表中，欢迎提交 Issue 或 Pull Request。
 
-本插件支持Home Assistant后台界面集成，无需编写yaml配置文件即可轻松将设备接入。
+本插件支持 Home Assistant 后台界面集成，无需编写 yaml 配置文件即可轻松将设备接入。
 
 ## 配置方式
 
-首先在手机上下载「MosHome（公牛智家）」App，并按照提示将家中的公牛智能设备（包括开关和网关等）接入网络。如果您是使用手机验证码的方式登录的App，还需要为账户设置密码，因为本插件目前只支持通过用户名和密码登录。
+首先在手机上下载「MosHome（公牛智家）」App，并按照提示将家中的公牛智能设备（包括开关和网关等）接入网络。如果您是使用手机验证码的方式登录的 App，还需要为账户设置密码，因为本插件目前只支持通过用户名和密码登录。
 
-添加设备后，您可以在App中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本插件能够自动读取相关信息并显示在Home Assistant中。
+添加设备后，您可以在 App 中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本插件能够自动读取相关信息并显示在 Home Assistant 中。
 
-在配置完成后，将本仓库安装到Home Assistant。具体方法是，先克隆这个仓库到部署Home Assistant的主机上：
+在配置完成后，将本仓库安装到 Home Assistant。具体方法是，先克隆这个仓库到部署 Home Assistant 的主机上：
 
 ```sh
 git clone https://github.com/stevenjoezhang/hass-iotbull
 ```
 
-然后，将其中的`custom_components/bull`子目录复制进Home Assistant的数据目录。例如，数据目录是`~/hass`，那么执行以下命令：
+然后，将其中的`custom_components/bull`子目录复制进 Home Assistant 的数据目录。例如，数据目录是`~/hass`，那么执行以下命令：
 
 ```sh
 cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 ```
 
-完成后，重启Home Assistant，在配置界面选择添加集成，搜索「Bull IoT」，按照提示操作即可。
+完成后，重启 Home Assistant，在配置界面选择添加集成，搜索「Bull IoT」，按照提示操作即可。
 
 ## 隐私
 
@@ -53,6 +54,6 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 
 ## 免责声明
 
-请注意，对Home Assistant或本插件的使用可能带来安全风险。例如，通过Home Assistant自动化定时启动、关闭加热设备，可能因软硬件故障导致火灾风险。
+请注意，对 Home Assistant 或本插件的使用可能带来安全风险。例如，通过 Home Assistant 自动化定时启动、关闭加热设备，可能因软硬件故障导致火灾风险。
 
 本插件仅供研究学习使用。请您注意用电安全，本插件作者不对由使用该插件产生的任何后果负责。
