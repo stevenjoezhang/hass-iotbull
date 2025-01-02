@@ -1,6 +1,3 @@
-from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID
-import requests
-import paho.mqtt.client as mqtt
 from datetime import datetime
 import uuid
 import hmac
@@ -9,9 +6,13 @@ from hashlib import sha256
 from urllib.parse import urljoin
 from functools import partial
 import json
-from typing import Callable
-
 import logging
+
+import requests
+import paho.mqtt.client as mqtt
+
+from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID
+
 _LOGGER = logging.getLogger(__name__)
 
 class InvalidTokenError(Exception):
@@ -22,15 +23,14 @@ class LoginRequiredError(Exception):
 
 def retry(func):
     async def wrapper(self, *args, **kwargs):
-        attempts = 0
         try:
             res = await func(self, *args, **kwargs)
             return res
-        except InvalidTokenError as e:
+        except InvalidTokenError as _e:
             await self.async_refresh_access_token()
             res = await func(self, *args, **kwargs)
             return res
-        except LoginRequiredError as e:
+        except LoginRequiredError as _e:
             await self.async_login(self.username, self.password)
             res = await func(self, *args, **kwargs)
             return res
