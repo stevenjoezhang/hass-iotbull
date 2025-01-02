@@ -1,9 +1,9 @@
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
-from .api import BullDevice
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfPower
+
+from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING
+from .api import BullDevice
 
 class BullSensorEntity(SensorEntity):
     def __init__(self, device: BullDevice, identifier: str):
@@ -31,7 +31,7 @@ class BullSensorEntity(SensorEntity):
     @property
     def name(self):
         # FIXME: may not work
-        return f"{list(self._device._identifier_names.values())[0]}功率"
+        return f"{list(self._device._identifier_names.values())[0]}{SENSOR_MAPPING[self._identifier]['name']}"
 
     @property
     def available(self) -> bool:
@@ -44,7 +44,7 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def unit_of_measurement(self):
-        return UnitOfPower.WATT
+        return SENSOR_MAPPING[self._identifier]["unit"]
 
 
 async def async_setup_entry(
@@ -56,7 +56,8 @@ async def async_setup_entry(
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
         if device._global_product_id in SWITCH_PRODUCT_ID:
-            if "RealTimePower" in device._identifier_values:
-                entities.append(BullSensorEntity(device, "RealTimePower"))
+            for identifier in SENSOR_MAPPING:
+                if identifier in device._identifier_values:
+                    entities.append(BullSensorEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)
