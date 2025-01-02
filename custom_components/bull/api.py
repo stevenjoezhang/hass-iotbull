@@ -271,6 +271,7 @@ class BullApi:
 
         client = mqtt.Client(clientId)
         client.on_connect = on_connect
+        client.reconnect_delay_set(min_delay=15, max_delay=120)
         client.username_pw_set(self.openid, self.access_token)
         client.on_message = partial(on_message, self.on_message)
         client.connect_async("106.15.66.132", 1883, 60)
