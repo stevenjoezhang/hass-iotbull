@@ -1,3 +1,5 @@
+"""API interactions for bull-iot integration."""
+
 from datetime import datetime
 import uuid
 import hmac
@@ -114,6 +116,7 @@ class BullApi:
         self.openid: str = None
         self.device_list = {}
         self.families = []
+        self.client = None
 
     def destroy(self) -> None:
         self.stop_mqtt()

@@ -1,3 +1,5 @@
+"""Entry for bull-iot integration."""
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 

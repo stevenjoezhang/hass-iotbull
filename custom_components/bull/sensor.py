@@ -1,3 +1,5 @@
+"""Entity definition for sensor devices."""
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry

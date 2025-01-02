@@ -1,3 +1,5 @@
+"""Config flow for bull-iot integration."""
+
 from homeassistant import config_entries
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol

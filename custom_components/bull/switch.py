@@ -1,8 +1,11 @@
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
-from .api import BullDevice
+"""Entity definition for switch devices."""
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+
+from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
+from .api import BullDevice
 
 # https://developers.home-assistant.io/docs/core/entity/switch
 class BullSwitchEntity(SwitchEntity):
