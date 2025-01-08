@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 from .api import BullApi
-from .const import DOMAIN, DATA_CLOUD, BULL_DEVICES
+from .const import DOMAIN, DATA_CLOUD, BULL_DEVICES, SERVICE_RELOAD
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -19,8 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Bull IoT integration from a config entry."""
     bull_api = BullApi(hass, entry.data)
 
-    await bull_api.async_login(bull_api.username, bull_api.password)
-    await bull_api.async_get_all_devices_list()
+    await bull_api.setup()
 
     #hass.data[DOMAIN][DATA_CLOUD] = bull_api
 
@@ -28,16 +27,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for dev_id in device_ids:
             hass.data[DOMAIN][BULL_DEVICES][dev_id] = bull_api.device_list[dev_id]
 
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, "switch"))
+        await hass.config_entries.async_forward_entry_setups(entry, ["switch"])
 
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, "sensor"))
+        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, "cover"))
-
-        await bull_api.init_mqtt()
+        await hass.config_entries.async_forward_entry_setups(entry, ["cover"])
 
     hass.async_create_task(setup_entities(bull_api.device_list.keys()))
 

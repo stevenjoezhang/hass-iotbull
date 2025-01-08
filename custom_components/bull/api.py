@@ -118,8 +118,15 @@ class BullApi:
         self.families = []
         self.client = None
 
+    async def setup(self) -> None:
+        await self.async_login(self.username, self.password)
+        await self.async_get_all_devices_list()
+        await self.init_mqtt()
+        _LOGGER.info("BullApi started")
+
     def destroy(self) -> None:
         self.stop_mqtt()
+        _LOGGER.info("BullApi stopped")
 
     def serialize(self):
         return {

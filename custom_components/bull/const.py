@@ -1,6 +1,6 @@
 """Constants for bull-iot integration."""
 
-from homeassistant.const import UnitOfPower, UnitOfElectricPotential, UnitOfElectricCurrent
+from homeassistant.const import UnitOfPower, UnitOfElectricPotential, UnitOfElectricCurrent, SERVICE_RELOAD
 
 DOMAIN = "bull"
 DATA_CLOUD = "cloud_data"
