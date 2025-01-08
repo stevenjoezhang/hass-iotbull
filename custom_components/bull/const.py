@@ -3,8 +3,9 @@
 from homeassistant.const import UnitOfPower, UnitOfElectricPotential, UnitOfElectricCurrent, SERVICE_RELOAD
 
 DOMAIN = "bull"
-DATA_CLOUD = "cloud_data"
 BULL_DEVICES = "bull_devices"
+BULL_API_CLIENTS = "bull_api_clients"
+SUPPORTED_PLATFORMS = ["switch", "sensor", "cover"]
 
 APPSECRET = b"t3f9hqri8ciuici50aem25xmcyqsopey"
 API_URL = "https://api.iotbull.com"
