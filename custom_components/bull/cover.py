@@ -3,6 +3,7 @@
 from homeassistant.components.cover import CoverEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, BULL_DEVICES, COVER_PRODUCT_ID
 from .api import BullDevice
@@ -70,7 +71,7 @@ class BullCoverEntity(CoverEntity):
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Bull IoT platform."""
     entities = []

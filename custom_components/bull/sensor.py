@@ -3,6 +3,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING
 from .api import BullDevice
@@ -52,7 +53,7 @@ class BullSensorEntity(SensorEntity):
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Bull IoT platform."""
     entities = []
