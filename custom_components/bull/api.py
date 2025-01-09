@@ -121,11 +121,12 @@ class BullApi:
     async def setup(self) -> None:
         await self.async_login(self.username, self.password)
         await self.async_get_all_devices_list()
-        await self.init_mqtt()
+        self.init_mqtt()
         _LOGGER.info("BullApi started")
 
     def destroy(self) -> None:
         self.stop_mqtt()
+        # FIXME: old devices are not removed during reload
         _LOGGER.info("BullApi stopped")
 
     def serialize(self):
@@ -253,7 +254,7 @@ class BullApi:
         json_data = json.dumps(data)
         self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
 
-    async def init_mqtt(self) -> None:
+    def init_mqtt(self) -> None:
         clientId = "IOS@2.9.1@" + self.openid
 
         def on_connect(client, userdata, flags, rc: int):
