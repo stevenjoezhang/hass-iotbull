@@ -166,6 +166,30 @@ class BullApi:
             self.refresh_token = res["result"]["refresh_token"]
             self.openid = str(res["result"]["openid"])
 
+    @staticmethod
+    def encrypt_sha256(data):
+        hash_obj = sha256()
+        hash_obj.update(data.encode('utf-8'))
+        return hash_obj.hexdigest()
+
+    async def async_login_mos(self, username: str, password: str) -> None:
+        password = self.encrypt_sha256(self.encrypt_sha256(password) + self.encrypt_sha256('GONGNIU'))
+        res = await self.async_make_request("POST", "/mos/uic/v1/auth/form",
+                                            "application/x-www-form-urlencoded; charset=utf-8",
+                                            {
+                                                "Login_parameter": "APP_PWD"
+                                            },
+                                            f"password={password}&username={username}")
+
+        if not res["success"]:
+            raise Exception("login_error")
+        else:
+            self.username = username
+            self.password = password
+            self.access_token = res["result"]["access_token"]
+            self.refresh_token = res["result"]["refresh_token"]
+            self.openid = str(res["result"]["openid"])
+
     @retry
     async def async_refresh_access_token(self) -> None:
         """Obtain a valid access token."""
