@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID
+from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, CHARGER_PRODUCT_ID
 from .api import BullDevice
 
 # https://developers.home-assistant.io/docs/core/entity/switch
@@ -60,6 +60,20 @@ class BullSwitchEntity(SwitchEntity):
         await self._device.set_dp(self._identifier, 0)
 
 
+class BullChargerEntity(BullSwitchEntity):
+    @property
+    def is_on(self) -> bool:
+        """Check if Bull IoT switch is on."""
+        return self._device._identifier_values["ChargerSwitch"]
+
+    async def async_turn_on(self, **kwargs):
+        """Turn Bull IoT switch on."""
+        await self._device.set_dp("ChargerSwitch", 1)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn Bull IoT switch off."""
+        await self._device.set_dp("ChargerSwitch", 0)
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -71,5 +85,8 @@ async def async_setup_entry(
         if device._global_product_id in SWITCH_PRODUCT_ID:
             for identifier in device._identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
+        elif device._global_product_id in CHARGER_PRODUCT_ID:
+            for identifier in device._identifier_names:
+                entities.append(BullChargerEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)
