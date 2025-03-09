@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING
+from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING, CHARGER_PRODUCT_ID
 from .api import BullDevice
 
 class BullSensorEntity(SensorEntity):
@@ -43,7 +43,10 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def state(self):
-        return self._device._identifier_values[self._identifier]
+        value = self._device._identifier_values[self._identifier]
+        if "scale" in SENSOR_MAPPING[self._identifier]:
+            value /= SENSOR_MAPPING[self._identifier]["scale"]
+        return value
 
     @property
     def unit_of_measurement(self):
@@ -58,7 +61,7 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device._global_product_id in SWITCH_PRODUCT_ID:
+        if device._global_product_id in SWITCH_PRODUCT_ID or device._global_product_id in CHARGER_PRODUCT_ID:
             for identifier in SENSOR_MAPPING:
                 if identifier in device._identifier_values:
                     entities.append(BullSensorEntity(device, identifier))
