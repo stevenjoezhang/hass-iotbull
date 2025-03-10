@@ -1,4 +1,5 @@
 {
+    "title": "Bull IoT",
     "config": {
         "error": {
             "unexpected_error": "Unexpected error. See logs for detail",
@@ -24,7 +25,6 @@
                 "description": "你可以在下面的输入框中勾选家庭，所选家庭中的设备将被接入。",
                 "title": "添加家庭"
             }
-        },
-        "title": "Bull IoT"
+        }
     }
 }

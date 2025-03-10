@@ -1,4 +1,5 @@
 {
+    "title": "Bull IoT",
     "config": {
         "error": {
             "unexpected_error": "Unexpected error. See logs for detail",
@@ -16,7 +17,6 @@
                 "description": "",
                 "title": "Log in Bull IoT Account"
             }
-        },
-        "title": "Bull IoT"
+        }
     }
 }
