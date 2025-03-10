@@ -1,6 +1,6 @@
 """Constants for bull-iot integration."""
 
-from homeassistant.const import UnitOfPower, UnitOfElectricPotential, UnitOfElectricCurrent, SERVICE_RELOAD
+from homeassistant.const import UnitOfPower, UnitOfElectricPotential, UnitOfElectricCurrent, UnitOfEnergy, UnitOfTime, SERVICE_RELOAD
 
 DOMAIN = "bull"
 BULL_DEVICES = "bull_devices"
@@ -20,5 +20,7 @@ SENSOR_MAPPING = {
     "RealTimeCurrent": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE},
     "ActivePower": {"name": "功率", "unit": UnitOfPower.WATT},
     "Voltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT, "scale": 10},
-    "Current": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE},
+    "Current": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE, "scale": 100},
+    "ChargingTime": {"name": "充电时长", "unit": UnitOfTime.MINUTES},
+    "EnergyUsed": {"name": "充电量", "unit": UnitOfEnergy.KILO_WATT_HOUR, "scale": 100},
 }
