@@ -35,8 +35,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await bull_api.setup()
     hass.data[DOMAIN][BULL_API_CLIENTS][entry.entry_id] = bull_api
 
-    for dev_id in bull_api.device_list.keys():
-        hass.data[DOMAIN][BULL_DEVICES][dev_id] = bull_api.device_list[dev_id]
+    for iot_id, device in bull_api.device_list.items():
+        hass.data[DOMAIN][BULL_DEVICES][iot_id] = device
 
     await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
     return True
@@ -51,8 +51,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     bull_api.destroy()
 
     # FIXME: multiple entries may have the same device
-    for dev_id in bull_api.device_list.keys():
-        hass.data[DOMAIN][BULL_DEVICES].pop(dev_id)
+    for iot_id in bull_api.device_list:
+        hass.data[DOMAIN][BULL_DEVICES].pop(iot_id)
 
     await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
     return True

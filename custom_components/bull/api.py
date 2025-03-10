@@ -45,15 +45,15 @@ class BullDevice:
     They share the same BullDevice object but have different identifiers."""
     def __init__(self, cloud, info) -> None:
         self._cloud = cloud
-        self._iotId = info["iotId"]
-        self._global_product_id = info["product"]["globalProductId"]
-        self._official_product_name = info["deviceInfoVo"]["nickName"]
-        self._room = info["roomName"]
+        self.iot_id = info["iotId"]
+        self.global_product_id = info["product"]["globalProductId"]
+        self.official_product_name = info["deviceInfoVo"]["nickName"]
+        self.room = info["roomName"]
         # Key is identifier, value is int, float or string
         # int 1 / 0 (indicating switch on / off etc.)
         # float (indicating socket power etc.)
         # string (indication device online etc.)
-        self._identifier_values = {}
+        self.identifier_values = {}
 
     @property
     def available(self) -> bool:
@@ -61,10 +61,10 @@ class BullDevice:
         # status is ONLINE or OFFLINE from /v2/home/devices API
         # It may change to int from thing.status mqtt message
         # 1 - Online, 3 - Offline
-        return self._identifier_values["status"] in ["ONLINE", 1]
+        return self.identifier_values["status"] in ["ONLINE", 1]
 
     async def set_dp(self, identifier: str, prop: int):
-        await self._cloud.set_property(self._iotId, identifier, prop)
+        await self._cloud.set_property(self.iot_id, identifier, prop)
 
     def update_dp(self, identifier: str, prop):
         pass
@@ -74,32 +74,32 @@ class BullSwitch(BullDevice):
         super().__init__(cloud, info)
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
         # Key is identifier, value is name (e.g. "客厅吊灯")
-        self._identifier_names = {}
+        self.identifier_names = {}
         # Key is identifier, value is entity
         self._entities = {}
 
     def update_dp(self, identifier: str, prop):
-        self._identifier_values[identifier] = prop
+        self.identifier_values[identifier] = prop
         entity = self._entities.get(identifier)
         if entity:
             entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s",
-                      self._iotId, identifier, prop)
+                      self.iot_id, identifier, prop)
 
 
 class BullCover(BullDevice):
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
-        self._name = None
+        self.name = None
         self._entity = None
 
     def update_dp(self, identifier: str, prop):
-        self._identifier_values[identifier] = prop
+        self.identifier_values[identifier] = prop
         entity = self._entity
         if entity:
             entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s",
-                      self._iotId, identifier, prop)
+                      self.iot_id, identifier, prop)
 
 
 class BullApi:
@@ -210,10 +210,10 @@ class BullApi:
         self.families = res["result"]
 
     @retry
-    async def async_switch_family(self, familyId: int) -> None:
+    async def async_switch_family(self, family_id: int) -> None:
         """Switch the family associated to a user."""
         await self.async_make_request(
-            "POST", f"/v1/families/{familyId}/switch", "application/json", {
+            "POST", f"/v1/families/{family_id}/switch", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
             }, "{}")
 
@@ -238,8 +238,8 @@ class BullApi:
             await self.async_get_families()
             self.selected_families = [family["familyId"] for family in self.families]
 
-        for familyId in self.selected_families:
-            await self.async_switch_family(familyId)
+        for family_id in self.selected_families:
+            await self.async_switch_family(family_id)
             await self.async_get_devices_list()
 
     def parse_devices(self, db) -> None:
@@ -249,21 +249,21 @@ class BullApi:
                     device = self.device_list[info["iotId"]]
                 else:
                     device = BullSwitch(self, info)
-                    self.device_list[device._iotId] = device
+                    self.device_list[device.iot_id] = device
                     for prop in info["property"].values():
                         key = prop["identifier"]
-                        device._identifier_values[key] = prop["value"]
-                device._identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+                        device.identifier_values[key] = prop["value"]
+                device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
             elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
                 if self.device_list.get(info["iotId"]):
                     device = self.device_list[info["iotId"]]
                 else:
                     device = BullCover(self, info)
-                    self.device_list[device._iotId] = device
+                    self.device_list[device.iot_id] = device
                     for prop in info["property"].values():
                         key = prop["identifier"]
-                        device._identifier_values[key] = prop["value"]
-                device._name = info["roomName"] + info["nickName"]
+                        device.identifier_values[key] = prop["value"]
+                device.name = info["roomName"] + info["nickName"]
         self.telemetry(db)
 
     def telemetry(self, db) -> None:
@@ -273,7 +273,7 @@ class BullApi:
             entry = {}
             entry["globalProductId"] = info["product"]["globalProductId"]
             entry["nickName"] = info["deviceInfoVo"]["nickName"]
-            entry["property"] = list(info["property"].keys())
+            entry["property"] = list(info["property"])
             data.append(entry)
         json_data = json.dumps(data)
         self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
@@ -292,14 +292,14 @@ class BullApi:
             _LOGGER.debug("MQTT message: %s", msg.payload)
             db = json.loads(msg.payload)
             if db.get("method") == "thing.properties":
-                iotId = db["params"]["iotId"]
+                iot_id = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
-                    cb(iotId, identifier, info["value"])
+                    cb(iot_id, identifier, info["value"])
             elif db.get("method") == "thing.status":
-                iotId = db["params"]["iotId"]
+                iot_id = db["params"]["iotId"]
                 info = db["params"]["status"]
-                cb(iotId, "status", info["value"])
+                cb(iot_id, "status", info["value"])
 
         client = mqtt.Client(client_id=clientId)
         client.on_connect = on_connect
@@ -314,14 +314,14 @@ class BullApi:
         if self.client:
             self.client.loop_stop()
 
-    def on_message(self, iotId: str, identifier: str, value) -> None:
-        device = self.device_list.get(iotId)
+    def on_message(self, iot_id: str, identifier: str, value) -> None:
+        device = self.device_list.get(iot_id)
         if device:
             device.update_dp(identifier, value)
 
-    async def set_property(self, iotId: str, identifier: str, value: int) -> None:
+    async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
         res = await self.async_make_request(
-            "PUT", f"/v1/dc/setDeviceProperty/{iotId}", "application/json", {
+            "PUT", f"/v1/dc/setDeviceProperty/{iot_id}", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
             }, json.dumps([
                 {

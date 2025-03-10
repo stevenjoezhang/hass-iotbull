@@ -20,21 +20,21 @@ class BullSwitchEntity(SwitchEntity):
         return {
             "identifiers": {
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._device._iotId)
+                (DOMAIN, self._device.iot_id)
             },
-            "name": self._device._official_product_name,
+            "name": self._device.official_product_name,
             "manufacturer": "Bull",
-            "model": self._device._official_product_name,
-            "suggested_area": self._device._room
+            "model": self._device.official_product_name,
+            "suggested_area": self._device.room
         }
 
     @property
     def unique_id(self) -> str:
-        return self._device._iotId + "." + self._identifier
+        return self._device.iot_id + "." + self._identifier
 
     @property
     def name(self) -> str:
-        return self._device._identifier_names[self._identifier]
+        return self._device.identifier_names[self._identifier]
 
     @property
     def should_poll(self):
@@ -49,7 +49,7 @@ class BullSwitchEntity(SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""
-        return self._device._identifier_values[self._identifier]
+        return self._device.identifier_values[self._identifier]
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
@@ -64,7 +64,7 @@ class BullChargerEntity(BullSwitchEntity):
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""
-        return self._device._identifier_values["ChargerSwitch"]
+        return self._device.identifier_values["ChargerSwitch"]
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
@@ -82,11 +82,11 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device._global_product_id in SWITCH_PRODUCT_ID:
-            for identifier in device._identifier_names:
+        if device.global_product_id in SWITCH_PRODUCT_ID:
+            for identifier in device.identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
-        elif device._global_product_id in CHARGER_PRODUCT_ID:
-            for identifier in device._identifier_names:
+        elif device.global_product_id in CHARGER_PRODUCT_ID:
+            for identifier in device.identifier_names:
                 entities.append(BullChargerEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)

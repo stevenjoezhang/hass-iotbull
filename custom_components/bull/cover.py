@@ -19,21 +19,21 @@ class BullCoverEntity(CoverEntity):
         return {
             "identifiers": {
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._device._iotId)
+                (DOMAIN, self._device.iot_id)
             },
-            "name": self._device._official_product_name,
+            "name": self._device.official_product_name,
             "manufacturer": "Bull",
-            "model": self._device._official_product_name,
-            "suggested_area": self._device._room
+            "model": self._device.official_product_name,
+            "suggested_area": self._device.room
         }
 
     @property
     def unique_id(self) -> str:
-        return self._device._iotId
+        return self._device.iot_id
 
     @property
     def name(self) -> str:
-        return self._device._name
+        return self._device.name
 
     @property
     def should_poll(self):
@@ -48,12 +48,12 @@ class BullCoverEntity(CoverEntity):
     @property
     def current_cover_position(self) -> int:
         """Return the current position of cover where 0 means closed and 100 is fully open."""
-        return self._device._identifier_values["curtainPosition"]
+        return self._device.identifier_values["curtainPosition"]
 
     @property
     def is_closed(self) -> bool:
         """Return if the cover is closed."""
-        return self._device._identifier_values["curtainPosition"] == 0
+        return self._device.identifier_values["curtainPosition"] == 0
 
     async def async_open_cover(self, **kwargs):
         """Open the cover."""
@@ -76,7 +76,7 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device._global_product_id in COVER_PRODUCT_ID:
+        if device.global_product_id in COVER_PRODUCT_ID:
             entities.append(BullCoverEntity(device))
 
     async_add_entities(entities, update_before_add=False)

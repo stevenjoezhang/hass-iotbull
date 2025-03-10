@@ -19,22 +19,22 @@ class BullSensorEntity(SensorEntity):
         return {
             "identifiers": {
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._device._iotId)
+                (DOMAIN, self._device.iot_id)
             },
-            "name": self._device._official_product_name,
+            "name": self._device.official_product_name,
             "manufacturer": "Bull",
-            "model": self._device._official_product_name,
-            "suggested_area": self._device._room
+            "model": self._device.official_product_name,
+            "suggested_area": self._device.room
         }
 
     @property
     def unique_id(self) -> str:
-        return self._device._iotId + "." + self._identifier
+        return self._device.iot_id + "." + self._identifier
 
     @property
     def name(self):
         # FIXME: may not work
-        return f"{list(self._device._identifier_names.values())[0]}{SENSOR_MAPPING[self._identifier]['name']}"
+        return f"{list(self._device.identifier_names.values())[0]}{SENSOR_MAPPING[self._identifier]['name']}"
 
     @property
     def available(self) -> bool:
@@ -43,7 +43,7 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def state(self):
-        value = self._device._identifier_values[self._identifier]
+        value = self._device.identifier_values[self._identifier]
         if "scale" in SENSOR_MAPPING[self._identifier]:
             value /= SENSOR_MAPPING[self._identifier]["scale"]
         return value
@@ -61,9 +61,9 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device._global_product_id in SWITCH_PRODUCT_ID or device._global_product_id in CHARGER_PRODUCT_ID:
+        if device.global_product_id in SWITCH_PRODUCT_ID or device.global_product_id in CHARGER_PRODUCT_ID:
             for identifier in SENSOR_MAPPING:
-                if identifier in device._identifier_values:
+                if identifier in device.identifier_values:
                     entities.append(BullSensorEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)

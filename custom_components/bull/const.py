@@ -15,9 +15,12 @@ CHARGER_PRODUCT_ID = [75, 196]
 COVER_PRODUCT_ID = [31, 56]
 
 SENSOR_MAPPING = {
+    # For product 7, 14, 30, 53, 180
     "RealTimePower": {"name": "功率", "unit": UnitOfPower.WATT},
+    # For product 53, 180
     "RealTimeVoltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT},
     "RealTimeCurrent": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE},
+    # For product 75, 196
     "ActivePower": {"name": "功率", "unit": UnitOfPower.WATT},
     "Voltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT, "scale": 10},
     "Current": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE, "scale": 100},
