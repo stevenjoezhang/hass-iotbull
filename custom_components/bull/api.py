@@ -245,7 +245,7 @@ class BullApi:
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
             else:
-                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID + CHARGER_PRODUCT_ID:
+                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
                     device = BullSwitch(self, info)
                     device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
                 elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
@@ -289,7 +289,7 @@ class BullApi:
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
             else:
-                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID + CHARGER_PRODUCT_ID:
+                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
                     device = BullSwitch(self, info)
                     device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
                 elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:

@@ -61,7 +61,7 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     entities = []
     for device in hass.data[DOMAIN][BULL_DEVICES].values():
-        if device.global_product_id in SWITCH_PRODUCT_ID or device.global_product_id in CHARGER_PRODUCT_ID:
+        if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             for identifier in SENSOR_MAPPING:
                 if identifier in device.identifier_values:
                     entities.append(BullSensorEntity(device, identifier))
