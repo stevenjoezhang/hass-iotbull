@@ -259,6 +259,49 @@ class BullApi:
                     device.identifier_values[key] = prop["value"]
         self.telemetry(db)
 
+    @retry
+    async def async_get_rooms_mos(self) -> None:
+        """Obtain the list of rooms associated to a user.
+        This API will only load devices from the family that the user last visited.
+        If the user has multiple families (for example, shared by other users), then not all devices can be loaded.
+        """
+        res = await self.async_make_request(
+            "GET", "/mos/home/v2/rooms", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, "")
+        self.parse_devices_mos(res)
+
+    async def async_get_all_devices_list_mos(self) -> None:
+        """Obtain the list of all devices associated to a user.
+        It will swith family and load device list based on user configuration.
+        """
+        # Support old configuration: no selected_families given
+        if not self.selected_families:
+            await self.async_get_families()
+            self.selected_families = [family["familyId"] for family in self.families]
+
+        for family_id in self.selected_families:
+            await self.async_switch_family(family_id)
+            await self.async_get_rooms_mos()
+
+    def parse_devices_mos(self, db) -> None:
+        for info in db["result"]["devices"][0]["deviceList"]:
+            if self.device_list.get(info["iotId"]):
+                device = self.device_list[info["iotId"]]
+            else:
+                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID + CHARGER_PRODUCT_ID:
+                    device = BullSwitch(self, info)
+                    device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+                elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
+                    device = BullCover(self, info)
+                    device.name = info["roomName"] + info["nickName"]
+                if device:
+                    self.device_list[device.iot_id] = device
+            if device:
+                for prop in info["property"].values():
+                    key = prop["identifier"]
+                    device.identifier_values[key] = prop["value"]
+
     def telemetry(self, db) -> None:
         url = "https://api.zsq.im/hass/"
         data = []
