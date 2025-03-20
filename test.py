@@ -1,4 +1,3 @@
-import os
 import asyncio
 import logging
 from http.client import HTTPConnection

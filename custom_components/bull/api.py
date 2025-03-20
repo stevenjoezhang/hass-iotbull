@@ -181,12 +181,12 @@ class BullApi:
 
         if not res["success"]:
             raise Exception("login_error")
-        else:
-            self.username = username
-            self.password = password
-            self.access_token = res["result"]["access_token"]
-            self.refresh_token = res["result"]["refresh_token"]
-            self.openid = str(res["result"]["openid"])
+
+        self.username = username
+        self.password = password
+        self.access_token = res["result"]["access_token"]
+        self.refresh_token = res["result"]["refresh_token"]
+        self.openid = str(res["result"]["openid"])
 
     @retry
     async def async_refresh_access_token(self) -> None:
@@ -229,7 +229,7 @@ class BullApi:
 
     async def async_get_all_devices_list(self) -> None:
         """Obtain the list of all devices associated to a user.
-        It will swith family and load device list based on user configuration.
+        It will switch family and load device list based on user configuration.
         """
         # Support old configuration: no selected_families given
         if not self.selected_families:
@@ -274,7 +274,7 @@ class BullApi:
 
     async def async_get_all_devices_list_mos(self) -> None:
         """Obtain the list of all devices associated to a user.
-        It will swith family and load device list based on user configuration.
+        It will switch family and load device list based on user configuration.
         """
         # Support old configuration: no selected_families given
         if not self.selected_families:
@@ -357,8 +357,9 @@ class BullApi:
         if device:
             device.update_dp(identifier, value)
 
+    @retry
     async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
-        res = await self.async_make_request(
+        await self.async_make_request(
             "PUT", f"/v1/dc/setDeviceProperty/{iot_id}", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
             }, json.dumps([
