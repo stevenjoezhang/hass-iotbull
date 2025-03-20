@@ -13,7 +13,7 @@ import logging
 import requests
 import paho.mqtt.client as mqtt
 
-from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID
+from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID, CHARGER_PRODUCT_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,7 +86,6 @@ class BullSwitch(BullDevice):
         _LOGGER.debug("Update device property: %s %s %s",
                       self.iot_id, identifier, prop)
 
-
 class BullCover(BullDevice):
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
@@ -100,7 +99,6 @@ class BullCover(BullDevice):
             entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s",
                       self.iot_id, identifier, prop)
-
 
 class BullApi:
     def __init__(self, hass, data: dict = {}) -> None:
@@ -244,26 +242,21 @@ class BullApi:
 
     def parse_devices(self, db) -> None:
         for info in db["result"]:
-            if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID:
-                if self.device_list.get(info["iotId"]):
-                    device = self.device_list[info["iotId"]]
-                else:
+            if self.device_list.get(info["iotId"]):
+                device = self.device_list[info["iotId"]]
+            else:
+                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID + CHARGER_PRODUCT_ID:
                     device = BullSwitch(self, info)
-                    self.device_list[device.iot_id] = device
-                    for prop in info["property"].values():
-                        key = prop["identifier"]
-                        device.identifier_values[key] = prop["value"]
-                device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
-            elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
-                if self.device_list.get(info["iotId"]):
-                    device = self.device_list[info["iotId"]]
-                else:
+                    device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+                elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
                     device = BullCover(self, info)
+                    device.name = info["roomName"] + info["nickName"]
+                if device:
                     self.device_list[device.iot_id] = device
-                    for prop in info["property"].values():
-                        key = prop["identifier"]
-                        device.identifier_values[key] = prop["value"]
-                device.name = info["roomName"] + info["nickName"]
+            if device:
+                for prop in info["property"].values():
+                    key = prop["identifier"]
+                    device.identifier_values[key] = prop["value"]
         self.telemetry(db)
 
     def telemetry(self, db) -> None:
