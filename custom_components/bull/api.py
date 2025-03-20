@@ -242,6 +242,7 @@ class BullApi:
 
     def parse_devices(self, db) -> None:
         for info in db["result"]:
+            device = None
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
             else:
@@ -286,6 +287,7 @@ class BullApi:
 
     def parse_devices_mos(self, db) -> None:
         for info in db["result"]["devices"][0]["deviceList"]:
+            device = None
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
             else:
