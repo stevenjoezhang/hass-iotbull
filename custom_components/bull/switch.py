@@ -64,15 +64,15 @@ class BullChargerEntity(BullSwitchEntity):
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""
-        return self._device.identifier_values["ChargerSwitch"]
+        return self._device.identifier_values["ChargeSwitch"]
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
-        await self._device.set_dp("ChargerSwitch", 1)
+        await self._device.set_dp("ChargeSwitch", 1)
 
     async def async_turn_off(self, **kwargs):
         """Turn Bull IoT switch off."""
-        await self._device.set_dp("ChargerSwitch", 0)
+        await self._device.set_dp("ChargeSwitch", 0)
 
 async def async_setup_entry(
     hass: HomeAssistant,
