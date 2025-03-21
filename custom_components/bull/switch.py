@@ -22,6 +22,7 @@ class BullSwitchEntity(SwitchEntity):
                 # Serial numbers are unique identifiers within a specific domain
                 (DOMAIN, self._device.iot_id)
             },
+            "name": self._device.product_name,
             "manufacturer": "Bull",
             "model": self._device.product_name,
             "model_id": self._device.model_name,
