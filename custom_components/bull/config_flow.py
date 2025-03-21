@@ -42,7 +42,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Allow the user to select one or more family."""
         # errors = {}
         if user_input is not None:
-            selected_families = user_input['family']
+            selected_families = user_input['families']
             if len(selected_families) == 0:
                 return await self.async_step_select_family(error='no_family_selected')
             # Convert string back to int
@@ -64,7 +64,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="select_family",
             data_schema=vol.Schema({
-                vol.Required('family'): cv.multi_select(options),
+                vol.Required('families'): cv.multi_select(options),
             }),
             errors={'base': error}
         )
