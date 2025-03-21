@@ -6,7 +6,7 @@
 
 目前测试已支持的公牛智能设备包括：
 
-| globalProductId | nickName |
+| globalProductId | productName |
 | - | - |
 | 4 | G27智能一位开关(单火/zigbee) |
 | 5 | G27智能二位开关(单火/zigbee) |
@@ -21,7 +21,7 @@
 | 36 | G55智能开关(三位零火) |
 | 53 | 电源净化插座智联版 |
 | 56 | 智能窗帘GDS015 |
-| 75 | 充电桩 |
+| 75 | 7kW交流充电桩(风尚智联款) |
 | 149 | C100智能屏网关(零火) |
 | 157 | C100智能开关(一位零火) |
 | 158 | C100智能开关(二位零火) |
@@ -67,7 +67,7 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 
 ## 隐私
 
-本插件可能会收集您所使用的设备的`globalProductId`、`deviceInfoVo`和`property`信息。这些信息不包含任何隐私数据，它们对于所有购买了同款设备的用户都是相同的。这些数据仅用于帮助插件作者分析是否有新款设备加入，并对它们进行适配。
+本插件可能会收集您所使用的设备的`globalProductId`、`productName`和`property`信息。这些信息不包含任何隐私数据，它们对于所有购买了同款设备的用户都是相同的。这些数据仅用于帮助插件作者分析是否有新款设备加入，并对它们进行适配。
 
 ## 免责声明
 

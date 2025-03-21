@@ -278,7 +278,7 @@ class BullApi:
     async def async_parse_devices(self, db) -> None:
         for info in db["result"]:
             await self.async_parse_device(info)
-        self.telemetry(db)
+        self.telemetry()
 
     @retry
     async def async_get_rooms_mos(self) -> None:
@@ -308,15 +308,18 @@ class BullApi:
     async def async_parse_devices_mos(self, db) -> None:
         for info in db["result"]["devices"][0]["deviceList"]:
             await self.async_parse_device(info)
+        self.telemetry()
 
-    def telemetry(self, db) -> None:
+    def telemetry(self) -> None:
         url = "https://api.zsq.im/hass/"
         data = []
-        for info in db["result"]:
+        for device in self.device_list.values():
             entry = {}
-            entry["globalProductId"] = info["product"]["globalProductId"]
-            entry["nickName"] = info["deviceInfoVo"]["nickName"]
-            entry["property"] = list(info["property"])
+            entry["globalProductId"] = device.global_product_id
+            entry["productName"] = device.product_name
+            entry["modelName"] = device.model_name
+            entry["firmwareVersion"] = device.firmware_version
+            entry["property"] = list(device.identifier_values)
             data.append(entry)
         json_data = json.dumps(data)
         self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
