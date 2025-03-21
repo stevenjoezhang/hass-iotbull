@@ -12,6 +12,7 @@ class BullSensorEntity(SensorEntity):
     def __init__(self, device: BullDevice, identifier: str):
         self._device = device
         self._identifier = identifier
+        self._attr_device_class = SENSOR_MAPPING[self._identifier]["class"]
         device._entities[identifier] = self
 
     @property

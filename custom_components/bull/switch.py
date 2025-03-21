@@ -62,6 +62,8 @@ class BullSwitchEntity(SwitchEntity):
 
 
 class BullChargerEntity(BullSwitchEntity):
+    _attr_translation_key = "charger"
+
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""

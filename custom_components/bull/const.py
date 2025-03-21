@@ -16,14 +16,14 @@ COVER_PRODUCT_ID = {31, 56}
 
 SENSOR_MAPPING = {
     # For product 7, 14, 30, 53, 180
-    "RealTimePower": {"name": "功率", "unit": UnitOfPower.WATT},
+    "RealTimePower": {"name": "功率", "unit": UnitOfPower.WATT, "class": "power"},
     # For product 53, 180
-    "RealTimeVoltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT},
-    "RealTimeCurrent": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE},
+    "RealTimeVoltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT, "class": "voltage"},
+    "RealTimeCurrent": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE, "class": "current"},
     # For product 75, 196
-    "ActivePower": {"name": "功率", "unit": UnitOfPower.WATT},
-    "Voltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT, "scale": 10},
-    "Current": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE, "scale": 100},
-    "ChargingTime": {"name": "充电时长", "unit": UnitOfTime.MINUTES},
-    "EnergyUsed": {"name": "充电量", "unit": UnitOfEnergy.KILO_WATT_HOUR, "scale": 100},
+    "ActivePower": {"name": "功率", "unit": UnitOfPower.WATT, "class": "power"},
+    "Voltage": {"name": "电压", "unit": UnitOfElectricPotential.VOLT, "class": "voltage", "scale": 10},
+    "Current": {"name": "电流", "unit": UnitOfElectricCurrent.AMPERE, "class": "current", "scale": 100},
+    "ChargingTime": {"name": "充电时长", "unit": UnitOfTime.MINUTES, "class": "duration"},
+    "EnergyUsed": {"name": "充电量", "unit": UnitOfEnergy.KILO_WATT_HOUR, "class": "energy", "scale": 100},
 }

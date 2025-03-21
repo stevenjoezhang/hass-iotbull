@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "switch": {
+      "charger": {
+        "default": "mdi:ev-station"
+      }
+    }
+  }
+}
