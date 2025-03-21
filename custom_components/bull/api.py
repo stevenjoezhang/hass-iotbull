@@ -47,7 +47,9 @@ class BullDevice:
         self._cloud = cloud
         self.iot_id = info["iotId"]
         self.global_product_id = info["product"]["globalProductId"]
-        self.official_product_name = info["deviceInfoVo"]["nickName"]
+        self.product_name = ""
+        self.model_name = ""
+        self.firmware_version = ""
         self.room = info["roomName"]
         # Key is identifier, value is int, float or string
         # int 1 / 0 (indicating switch on / off etc.)
@@ -153,16 +155,15 @@ class BullApi:
         if not res["success"]:
             if res["code"] == 901001:
                 raise Exception("wrong_user")
-            elif res["code"] == 901015:
+            if res["code"] == 901015:
                 raise Exception("wrong_pwd")
-            else:
-                raise Exception("login_error")
-        else:
-            self.username = username
-            self.password = password
-            self.access_token = res["result"]["access_token"]
-            self.refresh_token = res["result"]["refresh_token"]
-            self.openid = str(res["result"]["openid"])
+            raise Exception("login_error")
+
+        self.username = username
+        self.password = password
+        self.access_token = res["result"]["access_token"]
+        self.refresh_token = res["result"]["refresh_token"]
+        self.openid = str(res["result"]["openid"])
 
     @staticmethod
     def encrypt_sha256(data):
@@ -225,7 +226,7 @@ class BullApi:
             "GET", "/v2/home/devices", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
             }, "")
-        self.parse_devices(res)
+        await self.async_parse_devices(res)
 
     async def async_get_all_devices_list(self) -> None:
         """Obtain the list of all devices associated to a user.
@@ -240,24 +241,39 @@ class BullApi:
             await self.async_switch_family(family_id)
             await self.async_get_devices_list()
 
-    def parse_devices(self, db) -> None:
-        for info in db["result"]:
-            device = None
-            if self.device_list.get(info["iotId"]):
-                device = self.device_list[info["iotId"]]
-            else:
-                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
-                    device = BullSwitch(self, info)
-                    device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
-                elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
-                    device = BullCover(self, info)
-                    device.name = info["roomName"] + info["nickName"]
-                if device:
-                    self.device_list[device.iot_id] = device
+    @retry
+    async def async_get_device_info(self, iot_id: str) -> dict:
+        res = await self.async_make_request(
+            "GET", f"/mos/device/v1/deviceInfo/{iot_id}/get", "application/json", {
+                "Authorization": f"Bearer {self.access_token}"
+            }, "")
+        return res["result"]
+
+    async def async_parse_device(self, info: dict) -> None:
+        device = None
+        if self.device_list.get(info["iotId"]):
+            device = self.device_list[info["iotId"]]
+        else:
+            if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+                device = BullSwitch(self, info)
+                device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+            elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
+                device = BullCover(self, info)
+                device.name = info["roomName"] + info["nickName"]
             if device:
-                for prop in info["property"].values():
-                    key = prop["identifier"]
-                    device.identifier_values[key] = prop["value"]
+                self.device_list[device.iot_id] = device
+                device_info = await self.async_get_device_info(device.iot_id)
+                device.product_name = device_info["productName"]
+                device.model_name = device_info["modelName"]
+                device.firmware_version = device_info["firmwareVersion"]
+        if device:
+            for prop in info["property"].values():
+                key = prop["identifier"]
+                device.identifier_values[key] = prop["value"]
+
+    async def async_parse_devices(self, db) -> None:
+        for info in db["result"]:
+            await self.async_parse_device(info)
         self.telemetry(db)
 
     @retry
@@ -270,7 +286,7 @@ class BullApi:
             "GET", "/mos/home/v2/rooms", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
             }, "")
-        self.parse_devices_mos(res)
+        await self.async_parse_devices_mos(res)
 
     async def async_get_all_devices_list_mos(self) -> None:
         """Obtain the list of all devices associated to a user.
@@ -285,24 +301,9 @@ class BullApi:
             await self.async_switch_family(family_id)
             await self.async_get_rooms_mos()
 
-    def parse_devices_mos(self, db) -> None:
+    async def async_parse_devices_mos(self, db) -> None:
         for info in db["result"]["devices"][0]["deviceList"]:
-            device = None
-            if self.device_list.get(info["iotId"]):
-                device = self.device_list[info["iotId"]]
-            else:
-                if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
-                    device = BullSwitch(self, info)
-                    device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
-                elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
-                    device = BullCover(self, info)
-                    device.name = info["roomName"] + info["nickName"]
-                if device:
-                    self.device_list[device.iot_id] = device
-            if device:
-                for prop in info["property"].values():
-                    key = prop["identifier"]
-                    device.identifier_values[key] = prop["value"]
+            await self.async_parse_device(info)
 
     def telemetry(self, db) -> None:
         url = "https://api.zsq.im/hass/"

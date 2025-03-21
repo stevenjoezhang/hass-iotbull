@@ -21,10 +21,11 @@ class BullSensorEntity(SensorEntity):
                 # Serial numbers are unique identifiers within a specific domain
                 (DOMAIN, self._device.iot_id)
             },
-            "name": self._device.official_product_name,
             "manufacturer": "Bull",
-            "model": self._device.official_product_name,
-            "suggested_area": self._device.room
+            "model": self._device.product_name,
+            "model_id": self._device.model_name,
+            "suggested_area": self._device.room,
+            "sw_version": self._device.firmware_version
         }
 
     @property
