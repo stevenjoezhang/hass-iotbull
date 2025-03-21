@@ -250,26 +250,30 @@ class BullApi:
         return res["result"]
 
     async def async_parse_device(self, info: dict) -> None:
-        device = None
-        if self.device_list.get(info["iotId"]):
-            device = self.device_list[info["iotId"]]
-        else:
-            if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+        if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+            if self.device_list.get(info["iotId"]):
+                device = self.device_list[info["iotId"]]
+            else:
                 device = BullSwitch(self, info)
-                device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
-            elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
+                await self.async_add_new_device(device, info)
+            device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+        elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
+            if self.device_list.get(info["iotId"]):
+                device = self.device_list[info["iotId"]]
+            else:
                 device = BullCover(self, info)
-                device.name = info["roomName"] + info["nickName"]
-            if device:
-                self.device_list[device.iot_id] = device
-                device_info = await self.async_get_device_info(device.iot_id)
-                device.product_name = device_info["productName"]
-                device.model_name = device_info["modelName"]
-                device.firmware_version = device_info["firmwareVersion"]
-        if device:
-            for prop in info["property"].values():
-                key = prop["identifier"]
-                device.identifier_values[key] = prop["value"]
+                await self.async_add_new_device(device, info)
+            device.name = info["roomName"] + info["nickName"]
+
+    async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
+        self.device_list[device.iot_id] = device
+        for prop in info["property"].values():
+            key = prop["identifier"]
+            device.identifier_values[key] = prop["value"]
+        device_info = await self.async_get_device_info(device.iot_id)
+        device.product_name = device_info["productName"]
+        device.model_name = device_info["modelName"]
+        device.firmware_version = device_info["firmwareVersion"]
 
     async def async_parse_devices(self, db) -> None:
         for info in db["result"]:
