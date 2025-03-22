@@ -264,6 +264,13 @@ class BullApi:
                 device = BullCover(self, info)
                 await self.async_add_new_device(device, info)
             device.name = info["roomName"] + info["nickName"]
+        else:
+            # Add unsupported devices anyway
+            if self.device_list.get(info["iotId"]):
+                device = self.device_list[info["iotId"]]
+            else:
+                device = BullDevice(self, info)
+                await self.async_add_new_device(device, info)
 
     async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
         self.device_list[device.iot_id] = device
