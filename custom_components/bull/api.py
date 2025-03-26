@@ -18,12 +18,16 @@ from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID, CHAR
 _LOGGER = logging.getLogger(__name__)
 
 class InvalidTokenError(Exception):
-    pass
+    """Exception raised for invalid token."""
 
 class LoginRequiredError(Exception):
-    pass
+    """Exception raised for login required."""
+
+class NetworkError(Exception):
+    """Exception raised for network connection error."""
 
 def retry(func):
+    """Retry decorator."""
     async def wrapper(self, *args, **kwargs):
         try:
             res = await func(self, *args, **kwargs)
@@ -34,6 +38,9 @@ def retry(func):
             return res
         except LoginRequiredError as _e:
             await self.async_login(self.username, self.password)
+            res = await func(self, *args, **kwargs)
+            return res
+        except NetworkError as _e:
             res = await func(self, *args, **kwargs)
             return res
         return None
@@ -72,6 +79,7 @@ class BullDevice:
         pass
 
 class BullSwitch(BullDevice):
+    """A class to represent a Bull IoT switch device."""
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
@@ -89,6 +97,7 @@ class BullSwitch(BullDevice):
                       self.iot_id, identifier, prop)
 
 class BullCover(BullDevice):
+    """A class to represent a Bull IoT cover device."""
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         self.name = None
@@ -103,6 +112,7 @@ class BullCover(BullDevice):
                       self.iot_id, identifier, prop)
 
 class BullApi:
+    """A class to represent the Bull IoT API."""
     def __init__(self, hass, data: dict = {}) -> None:
         self._hass = hass
         if data:
@@ -119,17 +129,20 @@ class BullApi:
         self.client = None
 
     async def setup(self) -> None:
+        """Set up the Bull IoT API."""
         await self.async_login(self.username, self.password)
         await self.async_get_all_devices_list()
         self.init_mqtt()
         _LOGGER.info("BullApi started")
 
     def destroy(self) -> None:
+        """Destroy the Bull IoT API."""
         self.stop_mqtt()
         # FIXME: old devices are not removed during reload
         _LOGGER.info("BullApi stopped")
 
     def serialize(self):
+        """Serialize the Bull IoT API."""
         return {
             "username": self.username,
             "password": self.password,
@@ -137,14 +150,17 @@ class BullApi:
         }
 
     def deserialize(self, data: dict) -> None:
+        """Deserialize the Bull IoT API."""
         self.username = data.get("username")
         self.password = data.get("password")
         self.selected_families = data.get("selected_families")
 
     def select_family(self, selected_families):
+        """Select the families to load devices."""
         self.selected_families = selected_families
 
     async def async_login(self, username: str, password: str) -> None:
+        """Login to the Bull IoT API."""
         res = await self.async_make_request("POST", "/v1/auth/form",
                                             "application/x-www-form-urlencoded; charset=utf-8",
                                             {
@@ -167,11 +183,13 @@ class BullApi:
 
     @staticmethod
     def encrypt_sha256(data):
+        """Encrypt data with SHA256."""
         hash_obj = sha256()
         hash_obj.update(data.encode('utf-8'))
         return hash_obj.hexdigest()
 
     async def async_login_mos(self, username: str, password: str) -> None:
+        """Login to the Bull IoT API (MosHome)."""
         password = self.encrypt_sha256(self.encrypt_sha256(password) + self.encrypt_sha256('GONGNIU'))
         res = await self.async_make_request("POST", "/mos/uic/v1/auth/form",
                                             "application/x-www-form-urlencoded; charset=utf-8",
@@ -243,6 +261,7 @@ class BullApi:
 
     @retry
     async def async_get_device_info(self, iot_id: str) -> dict:
+        """Obtain the device information."""
         res = await self.async_make_request(
             "GET", f"/mos/device/v1/deviceInfo/{iot_id}/get", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
@@ -250,6 +269,7 @@ class BullApi:
         return res["result"]
 
     async def async_parse_device(self, info: dict) -> None:
+        """Parse the device information."""
         if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
@@ -273,6 +293,7 @@ class BullApi:
                 await self.async_add_new_device(device, info)
 
     async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
+        """Add a new device to the device list."""
         self.device_list[device.iot_id] = device
         for prop in info["property"].values():
             key = prop["identifier"]
@@ -283,6 +304,7 @@ class BullApi:
         device.firmware_version = device_info["firmwareVersion"]
 
     async def async_parse_devices(self, db) -> None:
+        """Parse the devices information."""
         for info in db["result"]:
             await self.async_parse_device(info)
         self.telemetry()
@@ -313,11 +335,13 @@ class BullApi:
             await self.async_get_rooms_mos()
 
     async def async_parse_devices_mos(self, db) -> None:
+        """Parse the devices information (MosHome)."""
         for info in db["result"]["devices"][0]["deviceList"]:
             await self.async_parse_device(info)
         self.telemetry()
 
     def telemetry(self) -> None:
+        """Send telemetry data to the server."""
         url = "https://api.zsq.im/hass/"
         data = []
         for device in self.device_list.values():
@@ -332,6 +356,7 @@ class BullApi:
         self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
 
     def init_mqtt(self) -> None:
+        """Initialize the MQTT client."""
         clientId = "IOS@2.9.1@" + self.openid
 
         def on_connect(client, userdata, flags, rc: int):
@@ -364,16 +389,19 @@ class BullApi:
         self.client = client
 
     def stop_mqtt(self) -> None:
+        """Stop the MQTT client."""
         if self.client:
             self.client.loop_stop()
 
     def on_message(self, iot_id: str, identifier: str, value) -> None:
+        """Handle the MQTT message."""
         device = self.device_list.get(iot_id)
         if device:
             device.update_dp(identifier, value)
 
     @retry
     async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
+        """Set the device property."""
         await self.async_make_request(
             "PUT", f"/v1/dc/setDeviceProperty/{iot_id}", "application/json", {
                 "Authorization": f"Bearer {self.access_token}"
@@ -433,13 +461,13 @@ class BullApi:
             res = response.json()
         except Exception as e:
             _LOGGER.error("Request failed: %s %s", path, e)
-            raise Exception("connection_failed")
+            raise NetworkError("connection_failed")
 
         if not res.get("success"):
             if res.get("error") == "invalid_token":
                 raise InvalidTokenError
             # {"code":9008,"message":"请重新登录","result":null,"success":false}
-            elif res.get("code") == 9008:
+            if res.get("code") == 9008:
                 raise LoginRequiredError
 
         return res
