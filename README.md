@@ -2,6 +2,10 @@
 
 [![通过HACS添加集成](https://my.home-assistant.io/badges/hacs_repository.svg)][hacs]
 
+![](https://forthebadge.com/images/badges/made-with-python.svg)
+![](https://forthebadge.com/images/badges/powered-by-electricity.svg)
+![](https://forthebadge.com/images/badges/makes-people-smile.svg)
+
 本插件实现了 MosHome（公牛智家）协议的规范，可将公牛智能设备自动接入[Home Assistant](https://www.home-assistant.io)。本插件能够控制开关、插座、窗帘、充电桩，能够自动更新设备的在线状态，对于支持电量统计的设备能够显示功率、电压、电流等数据。
 
 目前测试已支持的公牛智能设备包括：
