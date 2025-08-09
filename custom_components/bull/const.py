@@ -10,7 +10,7 @@ SUPPORTED_PLATFORMS = ["switch", "sensor", "cover"]
 APPSECRET = b"t3f9hqri8ciuici50aem25xmcyqsopey"
 API_URL = "https://api.iotbull.com"
 
-SWITCH_PRODUCT_ID = {4, 5, 6, 7, 13, 14, 30, 34, 35, 36, 53, 149, 157, 158, 159, 180}
+SWITCH_PRODUCT_ID = {4, 5, 6, 7, 13, 14, 30, 34, 35, 36, 53, 102, 104, 149, 157, 158, 159, 180}
 CHARGER_PRODUCT_ID = {75, 196}
 COVER_PRODUCT_ID = {31, 56}
 
