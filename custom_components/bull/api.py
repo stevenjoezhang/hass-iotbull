@@ -291,6 +291,7 @@ class BullApi:
             else:
                 device = BullDevice(self, info)
                 await self.async_add_new_device(device, info)
+            _LOGGER.warning("Unsupported device: %d %s %s", device.iot_id, device.product_name, device.model_name)
 
     async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
         """Add a new device to the device list."""
