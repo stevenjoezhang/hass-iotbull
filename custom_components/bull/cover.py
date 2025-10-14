@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, BULL_DEVICES, COVER_PRODUCT_ID
 from .api import BullDevice
 
+
 # https://developers.home-assistant.io/docs/core/entity/cover
 class BullCoverEntity(CoverEntity):
     def __init__(self, device: BullDevice) -> None:
@@ -26,7 +27,7 @@ class BullCoverEntity(CoverEntity):
             "model": self._device.product_name,
             "model_id": self._device.model_name,
             "suggested_area": self._device.room,
-            "sw_version": self._device.firmware_version
+            "sw_version": self._device.firmware_version,
         }
 
     @property

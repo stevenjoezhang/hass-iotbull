@@ -13,21 +13,32 @@ import logging
 import requests
 import paho.mqtt.client as mqtt
 
-from .const import APPSECRET, API_URL, SWITCH_PRODUCT_ID, COVER_PRODUCT_ID, CHARGER_PRODUCT_ID
+from .const import (
+    APPSECRET,
+    API_URL,
+    SWITCH_PRODUCT_ID,
+    COVER_PRODUCT_ID,
+    CHARGER_PRODUCT_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class InvalidTokenError(Exception):
     """Exception raised for invalid token."""
 
+
 class LoginRequiredError(Exception):
     """Exception raised for login required."""
+
 
 class NetworkError(Exception):
     """Exception raised for network connection error."""
 
+
 def retry(func):
     """Retry decorator."""
+
     async def wrapper(self, *args, **kwargs):
         try:
             res = await func(self, *args, **kwargs)
@@ -44,12 +55,15 @@ def retry(func):
             res = await func(self, *args, **kwargs)
             return res
         return None
+
     return wrapper
+
 
 class BullDevice:
     """A class to represent a Bull IoT device, binds to iotId.
     In some cases, a single device may contain multiple switches.
     They share the same BullDevice object but have different identifiers."""
+
     def __init__(self, cloud, info) -> None:
         self._cloud = cloud
         self.iot_id = info["iotId"]
@@ -78,8 +92,10 @@ class BullDevice:
     def update_dp(self, identifier: str, prop):
         pass
 
+
 class BullSwitch(BullDevice):
     """A class to represent a Bull IoT switch device."""
+
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
@@ -93,11 +109,12 @@ class BullSwitch(BullDevice):
         entity = self._entities.get(identifier)
         if entity:
             entity.schedule_update_ha_state()
-        _LOGGER.debug("Update device property: %s %s %s",
-                      self.iot_id, identifier, prop)
+        _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
+
 
 class BullCover(BullDevice):
     """A class to represent a Bull IoT cover device."""
+
     def __init__(self, cloud, info) -> None:
         super().__init__(cloud, info)
         self.name = None
@@ -108,11 +125,12 @@ class BullCover(BullDevice):
         entity = self._entity
         if entity:
             entity.schedule_update_ha_state()
-        _LOGGER.debug("Update device property: %s %s %s",
-                      self.iot_id, identifier, prop)
+        _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
+
 
 class BullApi:
     """A class to represent the Bull IoT API."""
+
     def __init__(self, hass, data: dict = {}) -> None:
         self._hass = hass
         if data:
@@ -146,7 +164,7 @@ class BullApi:
         return {
             "username": self.username,
             "password": self.password,
-            "selected_families": self.selected_families
+            "selected_families": self.selected_families,
         }
 
     def deserialize(self, data: dict) -> None:
@@ -161,12 +179,13 @@ class BullApi:
 
     async def async_login(self, username: str, password: str) -> None:
         """Login to the Bull IoT API."""
-        res = await self.async_make_request("POST", "/v1/auth/form",
-                                            "application/x-www-form-urlencoded; charset=utf-8",
-                                            {
-                                                "Login_parameter": "APP_PWD"
-                                            },
-                                            f"password={password}&username={username}")
+        res = await self.async_make_request(
+            "POST",
+            "/v1/auth/form",
+            "application/x-www-form-urlencoded; charset=utf-8",
+            {"Login_parameter": "APP_PWD"},
+            f"password={password}&username={username}",
+        )
 
         if not res["success"]:
             if res["code"] == 901001:
@@ -185,18 +204,21 @@ class BullApi:
     def encrypt_sha256(data):
         """Encrypt data with SHA256."""
         hash_obj = sha256()
-        hash_obj.update(data.encode('utf-8'))
+        hash_obj.update(data.encode("utf-8"))
         return hash_obj.hexdigest()
 
     async def async_login_mos(self, username: str, password: str) -> None:
         """Login to the Bull IoT API (MosHome)."""
-        password = self.encrypt_sha256(self.encrypt_sha256(password) + self.encrypt_sha256('GONGNIU'))
-        res = await self.async_make_request("POST", "/mos/uic/v1/auth/form",
-                                            "application/x-www-form-urlencoded; charset=utf-8",
-                                            {
-                                                "Login_parameter": "APP_PWD"
-                                            },
-                                            f"password={password}&username={username}")
+        password = self.encrypt_sha256(
+            self.encrypt_sha256(password) + self.encrypt_sha256("GONGNIU")
+        )
+        res = await self.async_make_request(
+            "POST",
+            "/mos/uic/v1/auth/form",
+            "application/x-www-form-urlencoded; charset=utf-8",
+            {"Login_parameter": "APP_PWD"},
+            f"password={password}&username={username}",
+        )
 
         if not res["success"]:
             raise Exception("login_error")
@@ -212,7 +234,8 @@ class BullApi:
         """Obtain a valid access token."""
         payload = f"client_id=paascloudclientuic&client_secret=paascloudClientSecret&grant_type=refresh_token&refresh_token={self.refresh_token}"
         res = await self.async_make_request(
-            "POST", "/v1/auth/token", "application/x-www-form-urlencoded", {}, payload)
+            "POST", "/v1/auth/token", "application/x-www-form-urlencoded", {}, payload
+        )
 
         self.access_token = res["result"]["access_token"]
         self.refresh_token = res["result"]["refresh_token"]
@@ -221,18 +244,24 @@ class BullApi:
     async def async_get_families(self) -> None:
         """Obtain the list of families associated to a user."""
         res = await self.async_make_request(
-            "GET", "/v2/families", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "")
+            "GET",
+            "/v2/families",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            "",
+        )
         self.families = res["result"]
 
     @retry
     async def async_switch_family(self, family_id: int) -> None:
         """Switch the family associated to a user."""
         await self.async_make_request(
-            "POST", f"/v1/families/{family_id}/switch", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "{}")
+            "POST",
+            f"/v1/families/{family_id}/switch",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            "{}",
+        )
 
     @retry
     async def async_get_devices_list(self) -> None:
@@ -241,9 +270,12 @@ class BullApi:
         If the user has multiple families (for example, shared by other users), then not all devices can be loaded.
         """
         res = await self.async_make_request(
-            "GET", "/v2/home/devices", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "")
+            "GET",
+            "/v2/home/devices",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            "",
+        )
         await self.async_parse_devices(res)
 
     async def async_get_all_devices_list(self) -> None:
@@ -263,9 +295,12 @@ class BullApi:
     async def async_get_device_info(self, iot_id: str) -> dict:
         """Obtain the device information."""
         res = await self.async_make_request(
-            "GET", f"/mos/device/v1/deviceInfo/{iot_id}/get", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "")
+            "GET",
+            f"/mos/device/v1/deviceInfo/{iot_id}/get",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            "",
+        )
         return res["result"]
 
     async def async_parse_device(self, info: dict) -> None:
@@ -276,7 +311,9 @@ class BullApi:
             else:
                 device = BullSwitch(self, info)
                 await self.async_add_new_device(device, info)
-            device.identifier_names[info["elementIdentifier"]] = info["roomName"] + info["nickName"]
+            device.identifier_names[info["elementIdentifier"]] = (
+                info["roomName"] + info["nickName"]
+            )
         elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
             if self.device_list.get(info["iotId"]):
                 device = self.device_list[info["iotId"]]
@@ -291,7 +328,12 @@ class BullApi:
             else:
                 device = BullDevice(self, info)
                 await self.async_add_new_device(device, info)
-            _LOGGER.warning("Unsupported device: %d %s %s", device.iot_id, device.product_name, device.model_name)
+            _LOGGER.warning(
+                "Unsupported device: %d %s %s",
+                device.iot_id,
+                device.product_name,
+                device.model_name,
+            )
 
     async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
         """Add a new device to the device list."""
@@ -317,9 +359,12 @@ class BullApi:
         If the user has multiple families (for example, shared by other users), then not all devices can be loaded.
         """
         res = await self.async_make_request(
-            "GET", "/mos/home/v2/rooms", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, "")
+            "GET",
+            "/mos/home/v2/rooms",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            "",
+        )
         await self.async_parse_devices_mos(res)
 
     async def async_get_all_devices_list_mos(self) -> None:
@@ -354,7 +399,14 @@ class BullApi:
             entry["property"] = list(device.identifier_values)
             data.append(entry)
         json_data = json.dumps(data)
-        self._hass.async_add_executor_job(partial(requests.post, url, data=json_data, headers={'Content-Type': 'application/json'}))
+        self._hass.async_add_executor_job(
+            partial(
+                requests.post,
+                url,
+                data=json_data,
+                headers={"Content-Type": "application/json"},
+            )
+        )
 
     def init_mqtt(self) -> None:
         """Initialize the MQTT client."""
@@ -363,8 +415,12 @@ class BullApi:
         def on_connect(client, userdata, flags, rc: int):
             _LOGGER.info("Connected with result code: %d", rc)
             # client.subscribe("/sys/app/down/account/bind_reply")
-            payload = {'id': 'msg_id_bind_85', 'params': {'token': self.access_token}, 'request': {
-                'clientId': clientId, 'userId': self.openid}, 'version': '1.0'}
+            payload = {
+                "id": "msg_id_bind_85",
+                "params": {"token": self.access_token},
+                "request": {"clientId": clientId, "userId": self.openid},
+                "version": "1.0",
+            }
             client.publish("/sys/app/up/account/bind", json.dumps(payload))
 
         def on_message(cb, client, userdata, msg):
@@ -404,16 +460,16 @@ class BullApi:
     async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
         """Set the device property."""
         await self.async_make_request(
-            "PUT", f"/v1/dc/setDeviceProperty/{iot_id}", "application/json", {
-                "Authorization": f"Bearer {self.access_token}"
-            }, json.dumps([
-                {
-                    "value": value,
-                    "identifier": identifier
-                }
-            ]))
+            "PUT",
+            f"/v1/dc/setDeviceProperty/{iot_id}",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            json.dumps([{"value": value, "identifier": identifier}]),
+        )
 
-    async def async_make_request(self, method: str, path: str, content_type: str, header, body: str) -> dict:
+    async def async_make_request(
+        self, method: str, path: str, content_type: str, header, body: str
+    ) -> dict:
         """Perform requests."""
         url = urljoin(API_URL, path)
         date = datetime.now().strftime("%a, %-d %b %Y %H:%M:%S GMT+8")
@@ -423,41 +479,45 @@ class BullApi:
             # note: key, value from body should be ordered
             extra += "?" + body
         payload = f"{method}\n*/*\n\n{content_type}\n{date}\nx-ca-key:203728881\nx-ca-nonce:{nonce}\nx-ca-signaturemethod:HmacSHA256\n{extra}"
-        signature = base64.b64encode(hmac.new(APPSECRET, payload.encode(
-            "utf-8"), digestmod=sha256).digest())
-        header = {**{
-            "Host": "api.iotbull.com",
-            "X-Ca-Key": "203728881",
-            "X-App-Platform": "ios",
-            "X-Ca-Signaturemethod": "HmacSHA256",
-            "Content-Md5": "",
-            "X-App-Version": "2.3.1",
-            "X-Ca-Signature-Headers": "x-ca-key,x-ca-nonce,x-ca-signaturemethod",
-            "Authorization": "Basic cGFhc2Nsb3VkY2xpZW50dWljOnBhYXNjbG91ZENsaWVudFNlY3JldA==",
-            "Accept-Language": "zh-Hans;q=1, zh-Hant-CN;q=0.9, en-CN;q=0.8",
-            "Accept": "*/*",
-            "Accept-Encoding": "gzip",
-            "Date": date,
-            "X-Ca-Nonce": nonce,
-            "X-Ca-Signature": signature,
-            "Content-Type": content_type
-        }, **header}
+        signature = base64.b64encode(
+            hmac.new(APPSECRET, payload.encode("utf-8"), digestmod=sha256).digest()
+        )
+        header = {
+            **{
+                "Host": "api.iotbull.com",
+                "X-Ca-Key": "203728881",
+                "X-App-Platform": "ios",
+                "X-Ca-Signaturemethod": "HmacSHA256",
+                "Content-Md5": "",
+                "X-App-Version": "2.3.1",
+                "X-Ca-Signature-Headers": "x-ca-key,x-ca-nonce,x-ca-signaturemethod",
+                "Authorization": "Basic cGFhc2Nsb3VkY2xpZW50dWljOnBhYXNjbG91ZENsaWVudFNlY3JldA==",
+                "Accept-Language": "zh-Hans;q=1, zh-Hant-CN;q=0.9, en-CN;q=0.8",
+                "Accept": "*/*",
+                "Accept-Encoding": "gzip",
+                "Date": date,
+                "X-Ca-Nonce": nonce,
+                "X-Ca-Signature": signature,
+                "Content-Type": content_type,
+            },
+            **header,
+        }
         method_mapping = {
             "POST": requests.post,
             "GET": requests.get,
-            "PUT": requests.put
+            "PUT": requests.put,
         }
 
-        func = partial(method_mapping[method], url,
-                       headers=header,
-                       data=body,
-                       timeout=10)
+        func = partial(
+            method_mapping[method], url, headers=header, data=body, timeout=10
+        )
 
         try:
             response = await self._hass.async_add_executor_job(func)
 
-            _LOGGER.debug("Request: %s %s %s",
-                      path, response.status_code, response.content)
+            _LOGGER.debug(
+                "Request: %s %s %s", path, response.status_code, response.content
+            )
 
             res = response.json()
         except Exception as e:

@@ -5,7 +5,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.service import async_register_admin_service
 
 from .api import BullApi
-from .const import DOMAIN, BULL_DEVICES, BULL_API_CLIENTS, SERVICE_RELOAD, SUPPORTED_PLATFORMS
+from .const import (
+    DOMAIN,
+    BULL_DEVICES,
+    BULL_API_CLIENTS,
+    SERVICE_RELOAD,
+    SUPPORTED_PLATFORMS,
+)
+
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Bull IoT integration component."""
@@ -28,6 +35,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     return True
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Bull IoT integration from a config entry."""
     bull_api = BullApi(hass, entry.data)
@@ -40,6 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload or reload a config entry."""

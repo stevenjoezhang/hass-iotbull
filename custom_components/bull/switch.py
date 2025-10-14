@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, CHARGER_PRODUCT_ID
 from .api import BullDevice
 
+
 # https://developers.home-assistant.io/docs/core/entity/switch
 class BullSwitchEntity(SwitchEntity):
     def __init__(self, device: BullDevice, identifier: str) -> None:
@@ -27,7 +28,7 @@ class BullSwitchEntity(SwitchEntity):
             "model": self._device.product_name,
             "model_id": self._device.model_name,
             "suggested_area": self._device.room,
-            "sw_version": self._device.firmware_version
+            "sw_version": self._device.firmware_version,
         }
 
     @property
@@ -77,6 +78,7 @@ class BullChargerEntity(BullSwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn Bull IoT switch off."""
         await self._device.set_dp("ChargeSwitch", 0)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

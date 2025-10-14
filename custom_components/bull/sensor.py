@@ -6,8 +6,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components.sensor.const import SensorStateClass
 
-from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING, CHARGER_PRODUCT_ID
+from .const import (
+    DOMAIN,
+    BULL_DEVICES,
+    SWITCH_PRODUCT_ID,
+    SENSOR_MAPPING,
+    CHARGER_PRODUCT_ID,
+)
 from .api import BullDevice
+
 
 class BullSensorEntity(SensorEntity):
     def __init__(self, device: BullDevice, identifier: str):
@@ -31,7 +38,7 @@ class BullSensorEntity(SensorEntity):
             "model": self._device.product_name,
             "model_id": self._device.model_name,
             "suggested_area": self._device.room,
-            "sw_version": self._device.firmware_version
+            "sw_version": self._device.firmware_version,
         }
 
     @property
