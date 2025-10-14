@@ -4,6 +4,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.sensor.const import SensorStateClass
 
 from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, SENSOR_MAPPING, CHARGER_PRODUCT_ID
 from .api import BullDevice
@@ -13,6 +14,9 @@ class BullSensorEntity(SensorEntity):
         self._device = device
         self._identifier = identifier
         self._attr_device_class = SENSOR_MAPPING[self._identifier]["class"]
+        self._attr_unit_of_measurement = SENSOR_MAPPING[self._identifier]["unit"]
+        if self._attr_device_class == "energy":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         device._entities[identifier] = self
 
     @property
@@ -50,10 +54,6 @@ class BullSensorEntity(SensorEntity):
         if "scale" in SENSOR_MAPPING[self._identifier]:
             value /= SENSOR_MAPPING[self._identifier]["scale"]
         return value
-
-    @property
-    def unit_of_measurement(self):
-        return SENSOR_MAPPING[self._identifier]["unit"]
 
 
 async def async_setup_entry(
