@@ -54,7 +54,6 @@ def retry(func):
         except NetworkError as _e:
             res = await func(self, *args, **kwargs)
             return res
-        return None
 
     return wrapper
 

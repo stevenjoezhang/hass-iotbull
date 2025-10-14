@@ -6,14 +6,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, BULL_DEVICES, SWITCH_PRODUCT_ID, CHARGER_PRODUCT_ID
-from .api import BullDevice
+from .api import BullSwitch
 
 
 # https://developers.home-assistant.io/docs/core/entity/switch
 class BullSwitchEntity(SwitchEntity):
-    def __init__(self, device: BullDevice, identifier: str) -> None:
+    """Representation of a Bull IoT switch."""
+
+    def __init__(self, device: BullSwitch, identifier: str) -> None:
         self._device = device
         self._identifier = identifier
+        self._attr_should_poll = False
         device._entities[identifier] = self
 
     @property
@@ -40,11 +43,6 @@ class BullSwitchEntity(SwitchEntity):
         return self._device.identifier_names[self._identifier]
 
     @property
-    def should_poll(self):
-        """Return if platform should poll for updates."""
-        return False
-
-    @property
     def available(self) -> bool:
         """Return True if the device is available."""
         return self._device.available
@@ -64,6 +62,8 @@ class BullSwitchEntity(SwitchEntity):
 
 
 class BullChargerEntity(BullSwitchEntity):
+    """Representation of a Bull IoT charger switch."""
+
     _attr_translation_key = "charger"
 
     @property

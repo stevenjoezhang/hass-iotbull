@@ -11,8 +11,11 @@ from .api import BullDevice
 
 # https://developers.home-assistant.io/docs/core/entity/cover
 class BullCoverEntity(CoverEntity):
+    """Representation of a Bull IoT cover."""
+
     def __init__(self, device: BullDevice) -> None:
         self._device = device
+        self._attr_should_poll = False
         device._entity = self
 
     @property
@@ -37,11 +40,6 @@ class BullCoverEntity(CoverEntity):
     @property
     def name(self) -> str:
         return self._device.name
-
-    @property
-    def should_poll(self):
-        """Return if platform should poll for updates."""
-        return False
 
     @property
     def available(self) -> bool:

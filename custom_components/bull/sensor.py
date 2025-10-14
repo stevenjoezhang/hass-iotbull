@@ -13,15 +13,17 @@ from .const import (
     SENSOR_MAPPING,
     CHARGER_PRODUCT_ID,
 )
-from .api import BullDevice
+from .api import BullSwitch
 
 
 class BullSensorEntity(SensorEntity):
-    def __init__(self, device: BullDevice, identifier: str):
+    """Representation of a Bull IoT sensor."""
+
+    def __init__(self, device: BullSwitch, identifier: str):
         self._device = device
         self._identifier = identifier
         self._attr_device_class = SENSOR_MAPPING[self._identifier]["class"]
-        self._attr_unit_of_measurement = SENSOR_MAPPING[self._identifier]["unit"]
+        self._attr_native_unit_of_measurement = SENSOR_MAPPING[self._identifier]["unit"]
         if self._attr_device_class == "energy":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         device._entities[identifier] = self
@@ -56,7 +58,7 @@ class BullSensorEntity(SensorEntity):
         return self._device.available
 
     @property
-    def state(self):
+    def native_value(self):
         value = self._device.identifier_values[self._identifier]
         if "scale" in SENSOR_MAPPING[self._identifier]:
             value /= SENSOR_MAPPING[self._identifier]["scale"]
