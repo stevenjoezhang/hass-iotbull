@@ -151,7 +151,7 @@ class BullApi:
     async def setup(self) -> None:
         """Set up the Bull IoT API."""
         await self.async_login(self.username, self.password)
-        await self.async_get_all_devices_list()
+        await self.async_get_all_devices_list_mos()
         self.init_mqtt()
         _LOGGER.info("BullApi started")
 
@@ -362,7 +362,7 @@ class BullApi:
         """
         res = await self.async_make_request(
             "GET",
-            "/mos/home/v2/rooms",
+            "/mos/home/v3/rooms",
             "application/json",
             {"Authorization": f"Bearer {self.access_token}"},
             "",
