@@ -10,7 +10,8 @@ from functools import partial
 import json
 import logging
 
-import requests
+from aiohttp import ClientError, ClientTimeout
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import paho.mqtt.client as mqtt
 
 from .const import (
@@ -140,10 +141,12 @@ class BullApi:
             self.selected_families = []
         self.access_token = None
         self.refresh_token = None
-        self.openid: str = None
+        self.openid: str = ""
         self.device_list = {}
         self.families = []
         self.client = None
+        self.session = async_create_clientsession(hass)
+        self._request_timeout = ClientTimeout(total=10)
 
     async def setup(self) -> None:
         """Set up the Bull IoT API."""
@@ -349,7 +352,7 @@ class BullApi:
         """Parse the devices information."""
         for info in db["result"]:
             await self.async_parse_device(info)
-        self.telemetry()
+        self._hass.async_create_task(self.telemetry())
 
     @retry
     async def async_get_rooms_mos(self) -> None:
@@ -383,9 +386,9 @@ class BullApi:
         """Parse the devices information (MosHome)."""
         for info in db["result"]["devices"][0]["deviceList"]:
             await self.async_parse_device(info)
-        self.telemetry()
+        self._hass.async_create_task(self.telemetry())
 
-    def telemetry(self) -> None:
+    async def telemetry(self) -> None:
         """Send telemetry data to the server."""
         url = "https://api.zsq.im/hass/"
         data = []
@@ -398,14 +401,17 @@ class BullApi:
             entry["property"] = list(device.identifier_values)
             data.append(entry)
         json_data = json.dumps(data)
-        self._hass.async_add_executor_job(
-            partial(
-                requests.post,
+
+        try:
+            async with self.session.post(
                 url,
                 data=json_data,
                 headers={"Content-Type": "application/json"},
-            )
-        )
+                timeout=self._request_timeout,
+            ) as response:
+                await response.read()
+        except ClientError as err:
+            _LOGGER.debug("Telemetry request failed: %s", err)
 
     def init_mqtt(self) -> None:
         """Initialize the MQTT client."""
@@ -480,7 +486,7 @@ class BullApi:
         payload = f"{method}\n*/*\n\n{content_type}\n{date}\nx-ca-key:203728881\nx-ca-nonce:{nonce}\nx-ca-signaturemethod:HmacSHA256\n{extra}"
         signature = base64.b64encode(
             hmac.new(APPSECRET, payload.encode("utf-8"), digestmod=sha256).digest()
-        )
+        ).decode()
         header = {
             **{
                 "Host": "api.iotbull.com",
@@ -501,27 +507,26 @@ class BullApi:
             },
             **header,
         }
-        method_mapping = {
-            "POST": requests.post,
-            "GET": requests.get,
-            "PUT": requests.put,
-        }
-
-        func = partial(
-            method_mapping[method], url, headers=header, data=body, timeout=10
-        )
-
         try:
-            response = await self._hass.async_add_executor_job(func)
+            async with self.session.request(
+                method,
+                url,
+                headers=header,
+                data=body,
+                timeout=self._request_timeout,
+            ) as response:
+                text = await response.text()
 
-            _LOGGER.debug(
-                "Request: %s %s %s", path, response.status_code, response.content
-            )
+                _LOGGER.debug("Request: %s %s %s", path, response.status, text)
 
-            res = response.json()
-        except Exception as e:
-            _LOGGER.error("Request failed: %s %s", path, e)
-            raise NetworkError("connection_failed")
+                try:
+                    res = json.loads(text)
+                except json.JSONDecodeError as err:
+                    _LOGGER.error("Invalid JSON response for %s: %s", path, text)
+                    raise NetworkError("invalid_response") from err
+        except ClientError as err:
+            _LOGGER.error("Request failed: %s %s", path, err)
+            raise NetworkError("connection_failed") from err
 
         if not res.get("success"):
             if res.get("error") == "invalid_token":
