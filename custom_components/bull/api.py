@@ -10,7 +10,7 @@ from functools import partial
 import json
 import logging
 
-from aiohttp import ClientError, ClientTimeout
+from aiohttp import ClientError, ClientTimeout, ClientSession
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import paho.mqtt.client as mqtt
 
@@ -131,7 +131,7 @@ class BullCover(BullDevice):
 class BullApi:
     """A class to represent the Bull IoT API."""
 
-    def __init__(self, hass, data: dict = {}) -> None:
+    def __init__(self, hass = None, data: dict = {}) -> None:
         self._hass = hass
         if data:
             self.deserialize(data)
@@ -145,7 +145,10 @@ class BullApi:
         self.device_list = {}
         self.families = []
         self.client = None
-        self.session = async_create_clientsession(hass)
+        if self._hass:
+            self.session = async_create_clientsession(self._hass)
+        else:
+            self.session = ClientSession()
         self._request_timeout = ClientTimeout(total=10)
 
     async def setup(self) -> None:
@@ -352,7 +355,8 @@ class BullApi:
         """Parse the devices information."""
         for info in db["result"]:
             await self.async_parse_device(info)
-        self._hass.async_create_task(self.telemetry())
+        if self._hass:
+            self._hass.async_create_task(self.telemetry())
 
     @retry
     async def async_get_rooms_mos(self) -> None:
@@ -386,7 +390,8 @@ class BullApi:
         """Parse the devices information (MosHome)."""
         for info in db["result"]["devices"][0]["deviceList"]:
             await self.async_parse_device(info)
-        self._hass.async_create_task(self.telemetry())
+        if self._hass:
+            self._hass.async_create_task(self.telemetry())
 
     async def telemetry(self) -> None:
         """Send telemetry data to the server."""
