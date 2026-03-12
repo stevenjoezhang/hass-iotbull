@@ -68,10 +68,11 @@ class BullDevice:
         self._cloud = cloud
         self.iot_id = info["iotId"]
         self.global_product_id = info["product"]["globalProductId"]
+        self.nick_name = ""
         self.product_name = ""
         self.model_name = ""
         self.firmware_version = ""
-        self.room = info["roomName"]
+        self.room = info.get("roomName", "")
         # Key is identifier, value is int, float or string
         # int 1 / 0 (indicating switch on / off etc.)
         # float (indicating socket power etc.)
@@ -310,29 +311,35 @@ class BullApi:
 
     async def async_parse_device(self, info: dict) -> None:
         """Parse the device information."""
-        if info["product"]["globalProductId"] in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
-            if self.device_list.get(info["iotId"]):
-                device = self.device_list[info["iotId"]]
-            else:
-                device = BullSwitch(self, info)
-                await self.async_add_new_device(device, info)
-            device.identifier_names[info["elementIdentifier"]] = (
-                info["roomName"] + info["nickName"]
-            )
-        elif info["product"]["globalProductId"] in COVER_PRODUCT_ID:
-            if self.device_list.get(info["iotId"]):
-                device = self.device_list[info["iotId"]]
-            else:
-                device = BullCover(self, info)
-                await self.async_add_new_device(device, info)
-            device.name = info["roomName"] + info["nickName"]
+        iot_id = info["iotId"]
+        global_product_id = info["product"]["globalProductId"]
+        element_identifier = info.get("elementIdentifier", "")
+        is_device_entity = info.get("deviceEntity", False)
+
+        # 1. Get or create device object
+        if self.device_list.get(iot_id):
+            device = self.device_list[iot_id]
         else:
-            # Add unsupported devices anyway
-            if self.device_list.get(info["iotId"]):
-                device = self.device_list[info["iotId"]]
+            if global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+                device = BullSwitch(self, info)
+            elif global_product_id in COVER_PRODUCT_ID:
+                device = BullCover(self, info)
             else:
                 device = BullDevice(self, info)
-                await self.async_add_new_device(device, info)
+            await self.async_add_new_device(device, info)
+
+        # 2. Handle device name (prefer nickName from deviceEntity: true)
+        if is_device_entity:
+            device.nick_name = info.get("nickName", device.nick_name)
+            return # Do not create entity for the main device entry
+
+        # 3. Handle functional entities
+        if global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+            if element_identifier:
+                device.identifier_names[element_identifier] = info.get("nickName", element_identifier)
+        elif global_product_id in COVER_PRODUCT_ID:
+            device.name = info.get("nickName", device.nick_name)
+        else:
             _LOGGER.warning(
                 "Unsupported device: %s %s %s",
                 device.iot_id,
@@ -350,6 +357,8 @@ class BullApi:
         device.product_name = device_info["productName"]
         device.model_name = device_info["modelName"]
         device.firmware_version = device_info["firmwareVersion"]
+        # Use productName as the default nick_name (reliable fallback)
+        device.nick_name = device.product_name
 
     async def async_parse_devices(self, db) -> None:
         """Parse the devices information."""
