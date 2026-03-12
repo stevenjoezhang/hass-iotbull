@@ -29,6 +29,7 @@ class BullCoverEntity(CoverEntity):
             "manufacturer": "Bull",
             "model": self._device.product_name,
             "model_id": self._device.model_name,
+            "serial_number": self._device.iot_id,
             "suggested_area": self._device.room,
             "sw_version": self._device.firmware_version,
         }
