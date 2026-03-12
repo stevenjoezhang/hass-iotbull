@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, BULL_DEVICES, COVER_PRODUCT_ID
+from .const import DOMAIN, BULL_API_CLIENTS, COVER_PRODUCT_ID
 from .api import BullDevice
 
 
@@ -75,8 +75,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Bull IoT platform."""
+    bull_api = hass.data[DOMAIN][BULL_API_CLIENTS][config_entry.entry_id]
     entities = []
-    for device in hass.data[DOMAIN][BULL_DEVICES].values():
+    for device in bull_api.device_list.values():
         if device.global_product_id in COVER_PRODUCT_ID:
             entities.append(BullCoverEntity(device))
 

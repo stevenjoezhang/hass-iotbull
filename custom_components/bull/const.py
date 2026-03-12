@@ -10,7 +10,6 @@ from homeassistant.const import (
 )
 
 DOMAIN = "bull"
-BULL_DEVICES = "bull_devices"
 BULL_API_CLIENTS = "bull_api_clients"
 SUPPORTED_PLATFORMS = ["switch", "sensor", "cover"]
 

@@ -8,7 +8,7 @@ from homeassistant.components.sensor.const import SensorStateClass
 
 from .const import (
     DOMAIN,
-    BULL_DEVICES,
+    BULL_API_CLIENTS,
     SWITCH_PRODUCT_ID,
     SENSOR_MAPPING,
     CHARGER_PRODUCT_ID,
@@ -71,8 +71,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Bull IoT platform."""
+    bull_api = hass.data[DOMAIN][BULL_API_CLIENTS][config_entry.entry_id]
     entities = []
-    for device in hass.data[DOMAIN][BULL_DEVICES].values():
+    for device in bull_api.device_list.values():
         if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             for identifier in SENSOR_MAPPING:
                 if identifier in device.identifier_values:
