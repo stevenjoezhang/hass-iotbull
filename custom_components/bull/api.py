@@ -78,6 +78,9 @@ class BullDevice:
         # float (indicating socket power etc.)
         # string (indication device online etc.)
         self.identifier_values = {}
+        self.raw_info = {}
+        self.raw_device_info = {}
+        self._connectivity_entity = None
 
     @property
     def available(self) -> bool:
@@ -85,13 +88,15 @@ class BullDevice:
         # status is ONLINE or OFFLINE from /v2/home/devices API
         # It may change to int from thing.status mqtt message
         # 1 - Online, 3 - Offline
-        return self.identifier_values["status"] in ["ONLINE", 1]
+        return self.identifier_values.get("status") in ["ONLINE", 1]
 
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self.iot_id, identifier, prop)
 
     def update_dp(self, identifier: str, prop):
-        pass
+        self.identifier_values[identifier] = prop
+        if self._connectivity_entity:
+            self._connectivity_entity.schedule_update_ha_state()
 
 
 class BullSwitch(BullDevice):
@@ -110,6 +115,8 @@ class BullSwitch(BullDevice):
         entity = self._entities.get(identifier)
         if entity:
             entity.schedule_update_ha_state()
+        if self._connectivity_entity:
+            self._connectivity_entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
 
 
@@ -126,6 +133,8 @@ class BullCover(BullDevice):
         entity = self._entity
         if entity:
             entity.schedule_update_ha_state()
+        if self._connectivity_entity:
+            self._connectivity_entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
 
 
@@ -340,8 +349,9 @@ class BullApi:
         elif global_product_id in COVER_PRODUCT_ID:
             device.name = info.get("nickName", device.nick_name)
         else:
-            _LOGGER.warning(
-                "Unsupported device: %s %s %s",
+            _LOGGER.info(
+                "Unknown product %s, keep connectivity entity only: %s %s %s",
+                global_product_id,
                 device.iot_id,
                 device.product_name,
                 device.model_name,
@@ -350,10 +360,12 @@ class BullApi:
     async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
         """Add a new device to the device list."""
         self.device_list[device.iot_id] = device
+        device.raw_info = info
         for prop in info["property"].values():
             key = prop["identifier"]
             device.identifier_values[key] = prop["value"]
         device_info = await self.async_get_device_info(device.iot_id)
+        device.raw_device_info = device_info
         device.product_name = device_info["productName"]
         device.model_name = device_info["modelName"]
         device.firmware_version = device_info["firmwareVersion"]

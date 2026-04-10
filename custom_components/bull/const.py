@@ -11,7 +11,7 @@ from homeassistant.const import (
 
 DOMAIN = "bull"
 BULL_API_CLIENTS = "bull_api_clients"
-SUPPORTED_PLATFORMS = ["switch", "sensor", "cover"]
+SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor"]
 
 APPSECRET = b"t3f9hqri8ciuici50aem25xmcyqsopey"
 API_URL = "https://api.iotbull.com"
