@@ -363,7 +363,10 @@ class BullApi:
         device.raw_info = info
         for prop in info["property"].values():
             key = prop["identifier"]
-            device.identifier_values[key] = prop["value"]
+            for flattened_key, flattened_value in self._flatten_identifier_values(
+                key, prop["value"]
+            ).items():
+                device.identifier_values[flattened_key] = flattened_value
         device_info = await self.async_get_device_info(device.iot_id)
         device.raw_device_info = device_info
         device.product_name = device_info["productName"]
@@ -372,6 +375,13 @@ class BullApi:
         # Use productName as the default nick_name (reliable fallback)
         device.nick_name = device.product_name
 
+    def _flatten_identifier_values(self, identifier: str, value) -> dict:
+        """Return flat identifier-value mapping for legacy and nested sensor mapping."""
+        flattened = {identifier: value}
+        if isinstance(value, dict):
+            for child_identifier, child_value in value.items():
+                flattened[f"{identifier}.{child_identifier}"] = child_value
+        return flattened
     async def async_parse_devices(self, db) -> None:
         """Parse the devices information."""
         for info in db["result"]:
@@ -461,7 +471,10 @@ class BullApi:
                 iot_id = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
-                    cb(iot_id, identifier, info["value"])
+                    for flattened_key, flattened_value in self._flatten_identifier_values(
+                        identifier, info["value"]
+                    ).items():
+                        cb(iot_id, flattened_key, flattened_value)
             elif db.get("method") == "thing.status":
                 iot_id = db["params"]["iotId"]
                 info = db["params"]["status"]

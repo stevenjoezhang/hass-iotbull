@@ -16,17 +16,43 @@ from .const import (
 from .api import BullSwitch
 
 
+def _is_sensor_meta(value) -> bool:
+    return isinstance(value, dict) and {"name", "unit", "class"}.issubset(value.keys())
+
+
+def _iter_sensor_specs(mapping: dict):
+    """Yield normalized sensor specs as (entity_identifier, value_key, meta)."""
+    for identifier, config in mapping.items():
+        if _is_sensor_meta(config):
+            yield identifier, identifier, config
+            continue
+
+        if isinstance(config, dict):
+            for child_identifier, child_config in config.items():
+                if _is_sensor_meta(child_config):
+                    key = f"{identifier}.{child_identifier}"
+                    yield key, key, child_config
+
+
 class BullSensorEntity(SensorEntity):
     """Representation of a Bull IoT sensor."""
 
-    def __init__(self, device: BullSwitch, identifier: str):
+    def __init__(
+        self,
+        device: BullSwitch,
+        entity_identifier: str,
+        value_key: str,
+        meta: dict,
+    ):
         self._device = device
-        self._identifier = identifier
-        self._attr_device_class = SENSOR_MAPPING[self._identifier]["class"]
-        self._attr_native_unit_of_measurement = SENSOR_MAPPING[self._identifier]["unit"]
+        self._entity_identifier = entity_identifier
+        self._value_key = value_key
+        self._meta = meta
+        self._attr_device_class = self._meta["class"]
+        self._attr_native_unit_of_measurement = self._meta["unit"]
         if self._attr_device_class == "energy":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        device._entities[identifier] = self
+        device._entities[value_key] = self
 
     @property
     def device_info(self):
@@ -46,12 +72,12 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def unique_id(self) -> str:
-        return self._device.iot_id + "." + self._identifier
+        return self._device.iot_id + "." + self._entity_identifier
 
     @property
     def name(self):
         # FIXME: may not work
-        return f"{list(self._device.identifier_names.values())[0]}{SENSOR_MAPPING[self._identifier]['name']}"
+        return f"{list(self._device.identifier_names.values())[0]}{self._meta['name']}"
 
     @property
     def available(self) -> bool:
@@ -60,9 +86,11 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def native_value(self):
-        value = self._device.identifier_values[self._identifier]
-        if "scale" in SENSOR_MAPPING[self._identifier]:
-            value /= SENSOR_MAPPING[self._identifier]["scale"]
+        value = self._device.identifier_values[self._value_key]
+        if "value_map" in self._meta:
+            value = self._meta["value_map"].get(value, value)
+        if "scale" in self._meta:
+            value /= self._meta["scale"]
         return value
 
 
@@ -74,10 +102,14 @@ async def async_setup_entry(
     """Set up the Bull IoT platform."""
     bull_api = hass.data[DOMAIN][BULL_API_CLIENTS][config_entry.entry_id]
     entities = []
+    sensor_specs = list(_iter_sensor_specs(SENSOR_MAPPING))
+
     for device in bull_api.device_list.values():
         if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
-            for identifier in SENSOR_MAPPING:
-                if identifier in device.identifier_values:
-                    entities.append(BullSensorEntity(device, identifier))
+            for entity_identifier, value_key, meta in sensor_specs:
+                if value_key in device.identifier_values:
+                    entities.append(
+                        BullSensorEntity(device, entity_identifier, value_key, meta)
+                    )
 
     async_add_entities(entities, update_before_add=False)

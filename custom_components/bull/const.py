@@ -6,6 +6,7 @@ from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfEnergy,
     UnitOfTime,
+    UnitOfTemperature,
     SERVICE_RELOAD,
 )
 
@@ -38,7 +39,7 @@ SWITCH_PRODUCT_ID = {
     180,
     279,
 }
-CHARGER_PRODUCT_ID = {74, 75, 141, 196}
+CHARGER_PRODUCT_ID = {74, 75, 141, 196, 258}
 COVER_PRODUCT_ID = {31, 56}
 
 SENSOR_MAPPING = {
@@ -80,4 +81,64 @@ SENSOR_MAPPING = {
         "class": "energy",
         "scale": 100,
     },
+    "DeviceRealInfo": {
+        "EnergyUsed": {
+            "name": "当前充电量",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "class": "energy",
+            "scale": 100,
+        },
+        "Current": {
+            "name": "实时电流",
+            "unit": UnitOfElectricCurrent.AMPERE,
+            "class": "current",
+            "scale": 100,
+        },
+        "Voltage": {
+            "name": "实时电压",
+            "unit": UnitOfElectricPotential.VOLT,
+            "class": "voltage",
+            "scale": 10,
+        },
+        "ActivePower": {
+            "name": "实时功率",
+            "unit": UnitOfPower.WATT,
+            "class": "power"
+        },
+        "GunTemp": {
+            "name": "枪头温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
+        "SlotTemp": {
+            "name": "插座温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
+        "MBTemp": {
+            "name": "主板温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
+    },
+    "DeviceWorkState": {
+        "WorkState": {
+            "name": "充电状态",
+            "unit": None,
+            "class": None,
+            "value_map": {
+                0: "未充电",
+                1: "充电中",
+            },
+        },
+        "GunState": {
+            "name": "插枪状态",
+            "unit": None,
+            "class": None,
+            "value_map": {
+                0: "未插枪",
+                1: "已插枪",
+            },
+        },
+    }
 }
