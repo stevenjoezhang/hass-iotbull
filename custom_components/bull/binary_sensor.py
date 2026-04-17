@@ -1,15 +1,18 @@
 """Entity definition for binary sensor devices."""
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
     BinarySensorDeviceClass,
+    BinarySensorEntity,
 )
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, BULL_API_CLIENTS
 from .api import BullDevice
+from .const import BULL_API_CLIENTS, DOMAIN
 
 
 def _flatten_dict(data: dict, prefix: str = "") -> dict:
@@ -33,53 +36,44 @@ def _flatten_dict(data: dict, prefix: str = "") -> dict:
 class BullConnectivityBinarySensorEntity(BinarySensorEntity):
     """Representation of a Bull IoT connectivity binary sensor."""
 
+    _attr_has_entity_name = True
+    _attr_translation_key = "connectivity"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_icon = "mdi:devices"
+
     def __init__(self, device: BullDevice) -> None:
         self._device = device
         self._attr_should_poll = False
+        self._attr_unique_id = f"{self._device.iot_id}.connectivity"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._device.iot_id)},
+            name=f"{self._device.room}{self._device.nick_name}",
+            manufacturer="Bull",
+            model=self._device.product_name,
+            model_id=self._device.model_name,
+            serial_number=self._device.iot_id,
+            suggested_area=self._device.room,
+            sw_version=self._device.firmware_version,
+        )
         self._device._connectivity_entity = self
 
     @property
-    def device_info(self):
-        return {
-            "identifiers": {
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._device.iot_id)
-            },
-            "name": f"{self._device.room}{self._device.nick_name}",
-            "manufacturer": "Bull",
-            "model": self._device.product_name,
-            "model_id": self._device.model_name,
-            "serial_number": self._device.iot_id,
-            "suggested_area": self._device.room,
-            "sw_version": self._device.firmware_version,
-        }
-
-    @property
-    def unique_id(self) -> str:
-        return self._device.iot_id + ".connectivity"
-
-    @property
-    def name(self) -> str:
-        return f"连通性"
-
-    @property
-    def device_class(self):
-        return BinarySensorDeviceClass.CONNECTIVITY
-
-    @property
     def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._device.available
+        """Return whether this entity is available."""
+        return True
 
     @property
     def is_on(self) -> bool:
-        """Return if the device is connected."""
-        return self._device.available
+        """Return if connectivity is online."""
+        raw_info = getattr(self._device, "raw_info", {})
+        if not isinstance(raw_info, dict):
+            return False
+        return raw_info.get("status") == "ONLINE"
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        attrs = {}
+        attrs: dict[str, Any] = {}
         attrs.update(_flatten_dict(getattr(self._device, "raw_info", {}), "info"))
         attrs.update(_flatten_dict(getattr(self._device, "raw_device_info", {}), "device_info"))
         attrs.update(_flatten_dict(getattr(self._device, "identifier_values", {}), "realtime"))

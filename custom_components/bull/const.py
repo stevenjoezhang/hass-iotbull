@@ -81,6 +81,15 @@ SENSOR_MAPPING = {
         "class": "energy",
         "scale": 100,
     },
+    "ChargeMode": {
+        "name": "充电模式",
+        "unit": None,
+        "class": None,
+        "value_map": {
+            0: "即插即充",
+            1: "无感充电",
+        },
+    },
     "DeviceRealInfo": {
         "EnergyUsed": {
             "name": "当前充电量",

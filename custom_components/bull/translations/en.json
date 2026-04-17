@@ -1,5 +1,12 @@
 {
     "title": "Bull IoT",
+    "entity": {
+        "binary_sensor": {
+            "connectivity": {
+                "name": "Connectivity"
+            }
+        }
+    },
     "config": {
         "error": {
             "connection_failed": "Network unreachable",

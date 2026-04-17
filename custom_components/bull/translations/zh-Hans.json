@@ -1,5 +1,12 @@
 {
     "title": "Bull IoT",
+    "entity": {
+        "binary_sensor": {
+            "connectivity": {
+                "name": "连通性"
+            }
+        }
+    },
     "config": {
         "error": {
             "connection_failed": "通讯异常",
