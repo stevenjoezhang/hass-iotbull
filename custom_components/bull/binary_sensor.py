@@ -82,6 +82,7 @@ class BullConnectivityBinarySensorEntity(BinarySensorEntity):
         attrs = {}
         attrs.update(_flatten_dict(getattr(self._device, "raw_info", {}), "info"))
         attrs.update(_flatten_dict(getattr(self._device, "raw_device_info", {}), "device_info"))
+        attrs.update(_flatten_dict(getattr(self._device, "identifier_values", {}), "realtime"))
         return attrs
 
 

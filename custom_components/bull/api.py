@@ -93,8 +93,38 @@ class BullDevice:
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self.iot_id, identifier, prop)
 
+    def _sync_raw_info_value(self, identifier: str, value) -> None:
+        """Sync incremental MQTT value into raw_info property snapshot."""
+        raw_info = getattr(self, "raw_info", None)
+        if not isinstance(raw_info, dict):
+            return
+
+        properties = raw_info.get("property")
+        if not isinstance(properties, dict):
+            return
+
+        if identifier == "status":
+            raw_info["status"] = value
+            return
+
+        if "." not in identifier:
+            prop_entry = properties.get(identifier)
+            if isinstance(prop_entry, dict):
+                prop_entry["value"] = value
+            return
+
+        parent_identifier, child_identifier = identifier.split(".", 1)
+        parent_entry = properties.get(parent_identifier)
+        if not isinstance(parent_entry, dict):
+            return
+
+        parent_value = parent_entry.get("value")
+        if isinstance(parent_value, dict):
+            parent_value[child_identifier] = value
+
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
+        self._sync_raw_info_value(identifier, prop)
         if self._connectivity_entity:
             self._connectivity_entity.schedule_update_ha_state()
 
@@ -112,6 +142,7 @@ class BullSwitch(BullDevice):
 
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
+        self._sync_raw_info_value(identifier, prop)
         entity = self._entities.get(identifier)
         if entity:
             entity.schedule_update_ha_state()
@@ -130,6 +161,7 @@ class BullCover(BullDevice):
 
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
+        self._sync_raw_info_value(identifier, prop)
         entity = self._entity
         if entity:
             entity.schedule_update_ha_state()
