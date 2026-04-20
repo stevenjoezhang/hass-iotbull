@@ -95,23 +95,20 @@ SENSOR_MAPPING = {
             "name": "当前充电量",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "class": "energy",
-            "scale": 100,
         },
         "Current": {
             "name": "实时电流",
             "unit": UnitOfElectricCurrent.AMPERE,
             "class": "current",
-            "scale": 100,
         },
         "Voltage": {
             "name": "实时电压",
             "unit": UnitOfElectricPotential.VOLT,
             "class": "voltage",
-            "scale": 10,
         },
         "ActivePower": {
             "name": "实时功率",
-            "unit": UnitOfPower.WATT,
+            "unit": UnitOfPower.KILO_WATT,
             "class": "power"
         },
         "GunTemp": {
@@ -136,8 +133,10 @@ SENSOR_MAPPING = {
             "unit": None,
             "class": None,
             "value_map": {
-                0: "未充电",
-                1: "充电中",
+                0: "未工作",
+                2: "充电中",
+                8: "已插枪未激活",
+                9: "已插枪已激活",
             },
         },
         "GunState": {
