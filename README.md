@@ -93,6 +93,7 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | 75 | 7kW交流充电桩(风尚智联款) |
 | 141 | 21kW交流充电桩(风尚智联款) |
 | 196 | 单相7kW充电桩(乐享款) |
+| 258 | 7kW交流充电桩(乐享智联款) |
 
 ### 窗帘
 
