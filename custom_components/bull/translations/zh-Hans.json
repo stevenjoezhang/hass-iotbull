@@ -7,6 +7,16 @@
             }
         }
     },
+    "device_automation": {
+        "trigger_type": {
+            "work_state_idle": "充电状态：未工作",
+            "work_state_charging": "充电状态：充电中",
+            "work_state_gun_inserted_not_activated": "充电状态：已插枪未激活",
+            "work_state_gun_inserted_activated": "充电状态：已插枪已激活",
+            "gun_state_unplugged": "插枪状态：未插枪",
+            "gun_state_plugged": "插枪状态：已插枪"
+        }
+    },
     "config": {
         "error": {
             "connection_failed": "通讯异常",
