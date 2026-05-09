@@ -4,6 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.service import async_register_admin_service
 
+from .api import BullApi
 from .const import (
     DOMAIN,
     BULL_API_CLIENTS,
@@ -35,9 +36,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Bull IoT integration from a config entry."""
-    from .api import BullApi
 
-    bull_api = BullApi(hass, entry.data, entry=entry)
+    bull_api = BullApi(hass, entry.data)
 
     await bull_api.setup()
     hass.data[DOMAIN][BULL_API_CLIENTS][entry.entry_id] = bull_api
