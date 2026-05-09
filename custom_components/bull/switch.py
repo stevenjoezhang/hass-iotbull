@@ -94,7 +94,7 @@ async def async_setup_entry(
             for identifier in device.identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
         elif device.global_product_id in CHARGER_PRODUCT_ID:
-            for identifier in device.identifier_names:
-                entities.append(BullChargerEntity(device, identifier))
+            if "ChargeSwitch" in device.identifier_names:
+                entities.append(BullChargerEntity(device, "ChargeSwitch"))
 
     async_add_entities(entities, update_before_add=False)

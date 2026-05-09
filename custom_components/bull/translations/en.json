@@ -1,5 +1,22 @@
 {
     "title": "Bull IoT",
+    "entity": {
+        "binary_sensor": {
+            "connectivity": {
+                "name": "Connectivity"
+            }
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "work_state_idle": "Work state: idle",
+            "work_state_charging": "Work state: charging",
+            "work_state_gun_inserted_not_activated": "Work state: gun inserted not activated",
+            "work_state_gun_inserted_activated": "Work state: gun inserted activated",
+            "gun_state_unplugged": "Gun state: unplugged",
+            "gun_state_plugged": "Gun state: plugged"
+        }
+    },
     "config": {
         "error": {
             "connection_failed": "Network unreachable",

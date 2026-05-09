@@ -36,6 +36,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Bull IoT integration from a config entry."""
+
     bull_api = BullApi(hass, entry.data)
 
     await bull_api.setup()
