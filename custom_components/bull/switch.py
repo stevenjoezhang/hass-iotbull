@@ -67,6 +67,16 @@ class BullChargerEntity(BullSwitchEntity):
 
     _attr_translation_key = "charger"
 
+    def __init__(self, device: BullSwitch, identifier: str) -> None:
+        super().__init__(device, identifier)
+        device._entities["ChargeSwitch"] = self
+
+    @property
+    def name(self) -> str:
+        return self._device.identifier_names.get(
+            self._identifier, self._device.nick_name or self._device.product_name
+        )
+
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""
@@ -94,7 +104,12 @@ async def async_setup_entry(
             for identifier in device.identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
         elif device.global_product_id in CHARGER_PRODUCT_ID:
-            if "ChargeSwitch" in device.identifier_names:
-                entities.append(BullChargerEntity(device, "ChargeSwitch"))
+            if "ChargeSwitch" in device.identifier_values:
+                identifier = (
+                    "ChargeSwitch"
+                    if "ChargeSwitch" in device.identifier_names
+                    else next(iter(device.identifier_names), "ChargeSwitch")
+                )
+                entities.append(BullChargerEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)
