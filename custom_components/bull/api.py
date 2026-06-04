@@ -93,6 +93,9 @@ class BullDevice:
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self.iot_id, identifier, prop)
 
+    async def invoke_thing_service(self, identifier: str):
+        await self._cloud.invoke_thing_service(self.iot_id, identifier)
+
     def _sync_raw_info_value(self, identifier: str, value) -> None:
         """Sync incremental MQTT value into raw_info property snapshot."""
         raw_info = getattr(self, "raw_info", None)
@@ -139,6 +142,7 @@ class BullSwitch(BullDevice):
         self.identifier_names = {}
         # Key is identifier, value is entity
         self._entities = {}
+        self._button_entities = []
 
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
@@ -146,6 +150,8 @@ class BullSwitch(BullDevice):
         entity = self._entities.get(identifier)
         if entity:
             entity.schedule_update_ha_state()
+        for button_entity in self._button_entities:
+            button_entity.schedule_update_ha_state()
         if self._connectivity_entity:
             self._connectivity_entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
@@ -541,6 +547,19 @@ class BullApi:
             "application/json",
             {"Authorization": f"Bearer {self.access_token}"},
             json.dumps([{"value": value, "identifier": identifier}]),
+        )
+
+    @retry
+    async def invoke_thing_service(self, iot_id: str, identifier: str) -> None:
+        """Invoke thing service by identifier."""
+        await self.async_make_request(
+            "PUT",
+            f"/mos/iot/v1/devices/{iot_id}/invokeThingService",
+            "application/json",
+            {
+                "Authorization": f"Bearer {self.access_token}",
+            },
+            json.dumps({"identifier": identifier}),
         )
 
     async def async_make_request(
