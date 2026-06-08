@@ -12,7 +12,7 @@ from homeassistant.const import (
 
 DOMAIN = "bull"
 BULL_API_CLIENTS = "bull_api_clients"
-SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor"]
+SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor", "button"]
 
 APPSECRET = b"t3f9hqri8ciuici50aem25xmcyqsopey"
 API_URL = "https://api.iotbull.com"
@@ -41,6 +41,21 @@ SWITCH_PRODUCT_ID = {
 }
 CHARGER_PRODUCT_ID = {74, 75, 141, 196, 258}
 COVER_PRODUCT_ID = {31, 56}
+
+BUTTON_ENTITY_MAPPING = {
+    258: [
+        {
+            "entity_identifier": "activate_charging",
+            "name": "激活充电",
+            "service_identifier": "SheduleAuth",
+            "available_condition": {
+                "all": [
+                    {"DeviceWorkState.WorkState": 8}
+                ]
+            },
+        }
+    ]
+}
 
 SENSOR_MAPPING = {
     # For product 7, 14, 30, 53, 180
