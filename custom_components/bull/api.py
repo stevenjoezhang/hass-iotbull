@@ -505,18 +505,21 @@ class BullApi:
         def on_message(cb, client, userdata, msg):
             _LOGGER.debug("MQTT message: %s", msg.payload)
             db = json.loads(msg.payload)
+            params = db.get("params", {})
+            iot_id = params.get("iotId")
+            status = 1
             if db.get("method") == "thing.properties":
-                iot_id = db["params"]["iotId"]
-                items = db["params"]["items"]
+                items = params["items"]
                 for identifier, info in items.items():
                     for flattened_key, flattened_value in self._flatten_identifier_values(
                         identifier, info["value"]
                     ).items():
                         cb(iot_id, flattened_key, flattened_value)
             elif db.get("method") == "thing.status":
-                iot_id = db["params"]["iotId"]
-                info = db["params"]["status"]
-                cb(iot_id, "status", info["value"])
+                info = params["status"]
+                status = info["value"] if info["value"] == 3 else 1
+            if iot_id:
+                cb(iot_id, "status", status)
 
         client = mqtt.Client(client_id=clientId)
         client.on_connect = on_connect
