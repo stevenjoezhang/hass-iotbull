@@ -80,6 +80,7 @@ class BullDevice:
         self.identifier_values = {}
         self.raw_info = {}
         self.raw_device_info = {}
+        self._last_status_time = None
         self._connectivity_entity = None
 
     @property
@@ -516,6 +517,24 @@ class BullApi:
             elif db.get("method") == "thing.status":
                 iot_id = db["params"]["iotId"]
                 info = db["params"]["status"]
+                status_time = info.get("time")
+                device = self.device_list.get(iot_id)
+                if (
+                    device
+                    and status_time is not None
+                    and device._last_status_time is not None
+                    and status_time < device._last_status_time
+                ):
+                    _LOGGER.debug(
+                        "Ignore stale MQTT status: iot_id=%s status=%s time=%s last_time=%s",
+                        iot_id,
+                        info["value"],
+                        status_time,
+                        device._last_status_time,
+                    )
+                    return
+                if device and status_time is not None:
+                    device._last_status_time = status_time
                 cb(iot_id, "status", info["value"])
 
         client = mqtt.Client(client_id=clientId)
