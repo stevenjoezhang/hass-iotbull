@@ -10,6 +10,7 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/stevenjoezhang/hass-iotbull/issues",
   "requirements": [
+    "cryptography>=42.0.0",
     "paho-mqtt>=1.6.1"
   ],
   "version": "0.0.1"

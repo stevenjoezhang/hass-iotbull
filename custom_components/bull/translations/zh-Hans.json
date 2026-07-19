@@ -20,6 +20,7 @@
     "config": {
         "error": {
             "connection_failed": "通讯异常",
+            "invalid_auth": "用户名或密码不正确",
             "wrong_user": "用户不存在",
             "wrong_pwd": "密码错误",
             "login_error": "登录失败"

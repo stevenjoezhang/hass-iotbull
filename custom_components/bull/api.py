@@ -1,22 +1,29 @@
 """API interactions for bull-iot integration."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import hmac
 import base64
-from hashlib import sha256
-from urllib.parse import urljoin
+from hashlib import md5, sha256
+from urllib.parse import parse_qsl, urlencode, urljoin
 from functools import partial
 import json
 import logging
+import os
 
 from aiohttp import ClientError, ClientTimeout, ClientSession
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import paho.mqtt.client as mqtt
 
 from .const import (
+    APPKEY,
     APPSECRET,
+    APP_VERSION,
+    APP_CLIENT_ID,
+    APP_CLIENT_SECRET,
     API_URL,
+    LOGIN_AES_KEY,
     SWITCH_PRODUCT_ID,
     COVER_PRODUCT_ID,
     CHARGER_PRODUCT_ID,
@@ -232,16 +239,29 @@ class BullApi:
         self.selected_families = selected_families
 
     async def async_login(self, username: str, password: str) -> None:
-        """Login to the Bull IoT API."""
+        """Login through the current MosHome v2 password endpoint."""
+        form_params = {
+            "username": self.encrypt_sensitive_field(username),
+            # The React Native layer derives this before calling the Android
+            # network wrapper; the wrapper itself sends it unchanged.
+            "password": self.encrypt_sha256(
+                self.encrypt_sha256(password) + self.encrypt_sha256("GONGNIU")
+            ),
+        }
         res = await self.async_make_request(
             "POST",
-            "/v1/auth/form",
+            "/mos/uic/v2/auth/form",
             "application/x-www-form-urlencoded; charset=utf-8",
             {"Login_parameter": "APP_PWD"},
-            f"password={password}&username={username}",
+            urlencode(form_params),
+            form_params=form_params,
         )
 
         if not res["success"]:
+            # MosHome v2 intentionally returns one code for either credential,
+            # so do not imply which field was wrong.
+            if res["code"] == 901006:
+                raise Exception("invalid_auth")
             if res["code"] == 901001:
                 raise Exception("wrong_user")
             if res["code"] == 901015:
@@ -261,34 +281,43 @@ class BullApi:
         hash_obj.update(data.encode("utf-8"))
         return hash_obj.hexdigest()
 
-    async def async_login_mos(self, username: str, password: str) -> None:
-        """Login to the Bull IoT API (MosHome)."""
-        password = self.encrypt_sha256(
-            self.encrypt_sha256(password) + self.encrypt_sha256("GONGNIU")
-        )
-        res = await self.async_make_request(
-            "POST",
-            "/mos/uic/v1/auth/form",
-            "application/x-www-form-urlencoded; charset=utf-8",
-            {"Login_parameter": "APP_PWD"},
-            f"password={password}&username={username}",
-        )
+    @staticmethod
+    def encrypt_sensitive_field(value: str) -> str:
+        """Match MosHome's AES-CBC encryption for login usernames.
 
-        if not res["success"]:
-            raise Exception("login_error")
+        The Android client uses a fresh 16-byte IV per request, prefixes it to
+        the ciphertext, and sends the result as upper-case hexadecimal.
+        """
+        value = (value or "").strip()
+        if not value:
+            return value
 
-        self.username = username
-        self.password = password
-        self.access_token = res["result"]["access_token"]
-        self.refresh_token = res["result"]["refresh_token"]
-        self.openid = str(res["result"]["openid"])
+        plain = value.encode("utf-8")
+        pad_length = 16 - len(plain) % 16
+        padded = plain + bytes([pad_length]) * pad_length
+        iv = os.urandom(16)
+        cipher = Cipher(
+            algorithms.AES(base64.b64decode(LOGIN_AES_KEY)), modes.CBC(iv)
+        )
+        encryptor = cipher.encryptor()
+        return (iv + encryptor.update(padded) + encryptor.finalize()).hex().upper()
 
     @retry
     async def async_refresh_access_token(self) -> None:
         """Obtain a valid access token."""
-        payload = f"client_id=paascloudclientuic&client_secret=paascloudClientSecret&grant_type=refresh_token&refresh_token={self.refresh_token}"
+        payload = json.dumps(
+            {
+                "refresh_token": self.refresh_token,
+                "grant_type": "refresh_token",
+            },
+            separators=(",", ":"),
+        )
         res = await self.async_make_request(
-            "POST", "/v1/auth/token", "application/x-www-form-urlencoded", {}, payload
+            "POST",
+            "/mos/uic/v1/auth/token",
+            "application/json; charset=utf-8",
+            {},
+            payload,
         )
 
         self.access_token = res["result"]["access_token"]
@@ -592,39 +621,94 @@ class BullApi:
             json.dumps({"identifier": identifier}),
         )
 
-    async def async_make_request(
-        self, method: str, path: str, content_type: str, header, body: str
-    ) -> dict:
-        """Perform requests."""
-        url = urljoin(API_URL, path)
-        date = datetime.now().strftime("%a, %-d %b %Y %H:%M:%S GMT+8")
-        nonce = str(uuid.uuid4()).upper()
-        extra = path
-        if content_type.startswith("application/x-www-form-urlencoded"):
-            # note: key, value from body should be ordered
-            extra += "?" + body
-        payload = f"{method}\n*/*\n\n{content_type}\n{date}\nx-ca-key:203728881\nx-ca-nonce:{nonce}\nx-ca-signaturemethod:HmacSHA256\n{extra}"
+    @staticmethod
+    def _canonical_resource(path: str, form_params: dict[str, str] | None) -> str:
+        """Build CloudAPI's path/query component of the string to sign."""
+        if not form_params:
+            return path
+
+        query = "&".join(
+            f"{key}={value}" if value else key
+            for key, value in sorted(form_params.items())
+        )
+        return f"{path}?{query}" if query else path
+
+    @staticmethod
+    def _make_cloudapi_headers(
+        method: str,
+        path: str,
+        content_type: str,
+        form_params: dict[str, str] | None,
+        body: str,
+    ) -> dict[str, str]:
+        """Generate the same CloudAPI HMAC headers as MosHome 5.1.13."""
+        now = datetime.now(timezone.utc)
+        date = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        x_ca_headers = {
+            "x-ca-key": APPKEY,
+            "x-ca-nonce": str(uuid.uuid4()),
+            "x-ca-signature-method": "HmacSHA256",
+            "x-ca-timestamp": str(int(now.timestamp() * 1000)),
+        }
+        canonical_headers = "".join(
+            f"{key}:{value}\n" for key, value in sorted(x_ca_headers.items())
+        )
+        content_md5 = ""
+        if body and not form_params:
+            content_md5 = base64.b64encode(md5(body.encode("utf-8")).digest()).decode()
+        payload = (
+            f"{method}\napplication/json; charset=utf-8\n{content_md5}\n"
+            f"{content_type}\n{date}\n"
+            f"{canonical_headers}"
+            f"{BullApi._canonical_resource(path, form_params)}"
+        )
         signature = base64.b64encode(
             hmac.new(APPSECRET, payload.encode("utf-8"), digestmod=sha256).digest()
         ).decode()
+        return {
+            "Host": "api.iotbull.com",
+            "X-Ca-Key": APPKEY,
+            "X-Ca-Nonce": x_ca_headers["x-ca-nonce"],
+            "X-Ca-Signature-Method": "HmacSHA256",
+            "X-Ca-Timestamp": x_ca_headers["x-ca-timestamp"],
+            "X-Ca-Signature-Headers": ",".join(sorted(x_ca_headers)),
+            "X-Ca-Signature": signature,
+            "CA_VERSION": "1",
+            "Authorization": "Basic "
+            + base64.b64encode(
+                f"{APP_CLIENT_ID}:{APP_CLIENT_SECRET}".encode("utf-8")
+            ).decode(),
+            "X-App-Platform": "android",
+            "X-App-Version": APP_VERSION,
+            "User-Agent": "ALIYUN-ANDROID-DEMO",
+            "Accept": "application/json; charset=utf-8",
+            "Accept-Language": "zh-Hans;q=1, zh-Hant-CN;q=0.9, en-CN;q=0.8",
+            "Accept-Encoding": "gzip",
+            "Date": date,
+            "Content-Type": content_type,
+            **({"Content-Md5": content_md5} if content_md5 else {}),
+        }
+
+    async def async_make_request(
+        self,
+        method: str,
+        path: str,
+        content_type: str,
+        header,
+        body: str,
+        *,
+        form_params: dict[str, str] | None = None,
+    ) -> dict:
+        """Perform a request signed with the current MosHome CloudAPI scheme."""
+        url = urljoin(API_URL, path)
+        if form_params is None and content_type.startswith(
+            "application/x-www-form-urlencoded"
+        ):
+            form_params = dict(parse_qsl(body, keep_blank_values=True))
         header = {
-            **{
-                "Host": "api.iotbull.com",
-                "X-Ca-Key": "203728881",
-                "X-App-Platform": "ios",
-                "X-Ca-Signaturemethod": "HmacSHA256",
-                "Content-Md5": "",
-                "X-App-Version": "2.3.1",
-                "X-Ca-Signature-Headers": "x-ca-key,x-ca-nonce,x-ca-signaturemethod",
-                "Authorization": "Basic cGFhc2Nsb3VkY2xpZW50dWljOnBhYXNjbG91ZENsaWVudFNlY3JldA==",
-                "Accept-Language": "zh-Hans;q=1, zh-Hant-CN;q=0.9, en-CN;q=0.8",
-                "Accept": "*/*",
-                "Accept-Encoding": "gzip",
-                "Date": date,
-                "X-Ca-Nonce": nonce,
-                "X-Ca-Signature": signature,
-                "Content-Type": content_type,
-            },
+            **self._make_cloudapi_headers(
+                method, path, content_type, form_params, body
+            ),
             **header,
         }
         try:

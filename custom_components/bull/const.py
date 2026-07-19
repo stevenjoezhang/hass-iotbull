@@ -14,7 +14,15 @@ DOMAIN = "bull"
 BULL_API_CLIENTS = "bull_api_clients"
 SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor", "button"]
 
-APPSECRET = b"t3f9hqri8ciuici50aem25xmcyqsopey"
+# MosHome 5.1.13 production CloudAPI credentials.  These are application
+# credentials embedded in the official client, rather than user credentials.
+APPKEY = "2037288812025"
+APPSECRET = b"XxNjYxonJBt6DskF368fdjLEQZC9ziMeLOZPf"
+APP_VERSION = "5.1.13"
+APP_CLIENT_ID = "paascloudclientuic"
+APP_CLIENT_SECRET = "paascloudClientSecret"
+# Base64 of the AES key used by the Android client to encrypt login usernames.
+LOGIN_AES_KEY = "cjJ2R1dCQTNRQVJOblJsUg=="
 API_URL = "https://api.iotbull.com"
 
 SWITCH_PRODUCT_ID = {

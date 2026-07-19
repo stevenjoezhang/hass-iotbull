@@ -12,7 +12,7 @@ async def test():
     username = os.getenv("BULL_USERNAME") or input("请输入您的用户名: ")
     password = os.getenv("BULL_PASSWORD") or input("请输入您的密码: ")
     bull_api = BullApi()
-    await bull_api.async_login_mos(username, password)
+    await bull_api.async_login(username, password)
     await bull_api.async_get_families()
     for family in bull_api.families:
         print(family)
