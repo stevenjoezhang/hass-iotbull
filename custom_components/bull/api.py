@@ -494,7 +494,12 @@ class BullApi:
 
         def on_connect(client, userdata, flags, rc: int):
             _LOGGER.info("Connected with result code: %d", rc)
-            # client.subscribe("/sys/app/down/account/bind_reply")
+            if rc != mqtt.MQTT_ERR_SUCCESS:
+                return
+
+            subscribe_rc, _ = client.subscribe("/sys/app/down/account/bind_reply", qos=0)
+            if subscribe_rc != mqtt.MQTT_ERR_SUCCESS:
+                _LOGGER.warning("MQTT bind-reply subscription failed: rc=%d", subscribe_rc)
             payload = {
                 "id": "msg_id_bind_85",
                 "params": {"token": self.access_token},
@@ -506,7 +511,13 @@ class BullApi:
         def on_message(cb, client, userdata, msg):
             _LOGGER.debug("MQTT message: %s", msg.payload)
             db = json.loads(msg.payload)
-            if db.get("method") == "thing.properties":
+            if msg.topic.endswith("/account/bind_reply"):
+                _LOGGER.info(
+                    "MQTT account bind reply: code=%s message=%s",
+                    db.get("code"),
+                    db.get("message"),
+                )
+            elif db.get("method") == "thing.properties":
                 iot_id = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
@@ -542,7 +553,7 @@ class BullApi:
         client.reconnect_delay_set(min_delay=15, max_delay=120)
         client.username_pw_set(self.openid, self.access_token)
         client.on_message = partial(on_message, self.on_message)
-        client.connect_async("106.15.66.132")
+        client.connect_async("emqx-prod.iotbull.com", port=1883)
         client.loop_start()
         self.client = client
 
