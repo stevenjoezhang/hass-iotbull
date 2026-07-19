@@ -76,8 +76,11 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def name(self):
-        # FIXME: may not work
-        return f"{list(self._device.identifier_names.values())[0]}{self._meta['name']}"
+        prefix = next(
+            iter(self._device.identifier_names.values()),
+            self._device.nick_name or self._device.product_name,
+        )
+        return f"{prefix}{self._meta['name']}"
 
     @property
     def available(self) -> bool:
@@ -86,7 +89,9 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def native_value(self):
-        value = self._device.identifier_values[self._value_key]
+        value = self._device.identifier_values.get(self._value_key)
+        if value is None:
+            return None
         if "value_map" in self._meta:
             value = self._meta["value_map"].get(value, value)
         if "scale" in self._meta:
@@ -103,11 +108,27 @@ async def async_setup_entry(
     bull_api = hass.data[DOMAIN][BULL_API_CLIENTS][config_entry.entry_id]
     entities = []
     sensor_specs = list(_iter_sensor_specs(SENSOR_MAPPING))
+    ble_value_keys = {
+        "WorkState",
+        "GunState",
+        "ChargeMode",
+        "DeviceFaultCodeInfo",
+        "DeviceRealInfo.ChargingTime",
+        "DeviceRealInfo.ChargeVoltage",
+        "DeviceRealInfo.ChargeCurrent",
+        "DeviceRealInfo.ChargeActivePower",
+        "DeviceRealInfo.ChargeEnergyUsed",
+        "DeviceRealInfo.ChargeMBTemp",
+        "DeviceRealInfo.ChargeSlotTemp",
+        "DeviceRealInfo.ChargeGunTemp",
+    }
 
     for device in bull_api.device_list.values():
         if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             for entity_identifier, value_key, meta in sensor_specs:
-                if value_key in device.identifier_values:
+                if value_key in device.identifier_values or (
+                    device.ble_charger and value_key in ble_value_keys
+                ):
                     entities.append(
                         BullSensorEntity(device, entity_identifier, value_key, meta)
                     )

@@ -80,15 +80,21 @@ class BullChargerEntity(BullSwitchEntity):
     @property
     def is_on(self) -> bool:
         """Check if Bull IoT switch is on."""
-        return self._device.identifier_values["ChargeSwitch"]
+        return bool(self._device.identifier_values.get("ChargeSwitch", False))
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
-        await self._device.set_dp("ChargeSwitch", 1)
+        if self._device.ble_charger:
+            await self._device.ble_charger.async_set_charging(True)
+        else:
+            await self._device.set_dp("ChargeSwitch", 1)
 
     async def async_turn_off(self, **kwargs):
         """Turn Bull IoT switch off."""
-        await self._device.set_dp("ChargeSwitch", 0)
+        if self._device.ble_charger:
+            await self._device.ble_charger.async_set_charging(False)
+        else:
+            await self._device.set_dp("ChargeSwitch", 0)
 
 
 async def async_setup_entry(
@@ -104,7 +110,7 @@ async def async_setup_entry(
             for identifier in device.identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
         elif device.global_product_id in CHARGER_PRODUCT_ID:
-            if "ChargeSwitch" in device.identifier_values:
+            if "ChargeSwitch" in device.identifier_values or device.ble_charger:
                 identifier = (
                     "ChargeSwitch"
                     if "ChargeSwitch" in device.identifier_names

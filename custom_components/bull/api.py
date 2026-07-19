@@ -28,6 +28,7 @@ from .const import (
     COVER_PRODUCT_ID,
     CHARGER_PRODUCT_ID,
 )
+from .ble import BleIdentity, BullBleError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ class BullDevice:
         self.raw_device_info = {}
         self._last_status_time = None
         self._connectivity_entity = None
+        self.ble_charger = None
+        self.ble_available = False
 
     @property
     def available(self) -> bool:
@@ -96,7 +99,10 @@ class BullDevice:
         # status is ONLINE or OFFLINE from /v2/home/devices API
         # It may change to int from thing.status mqtt message
         # 1 - Online, 3 - Offline
-        return self.identifier_values.get("status") in ["ONLINE", 1]
+        return self.ble_available or self.identifier_values.get("status") in [
+            "ONLINE",
+            1,
+        ]
 
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self.iot_id, identifier, prop)
@@ -211,12 +217,21 @@ class BullApi:
         """Set up the Bull IoT API."""
         await self.async_login(self.username, self.password)
         await self.async_get_all_devices_list_mos()
+        await self.async_setup_ble_chargers()
         self.init_mqtt()
         _LOGGER.info("BullApi started")
 
     def destroy(self) -> None:
         """Destroy the Bull IoT API."""
         self.stop_mqtt()
+        for device in self.device_list.values():
+            charger = device.ble_charger
+            if charger:
+                # Clear the reference synchronously so a subsequent reload can
+                # register its replacement even while this coordinator's
+                # unsubscribe callbacks are being awaited.
+                device.ble_charger = None
+                self._hass.async_create_task(charger.async_stop())
         # FIXME: old devices are not removed during reload
         _LOGGER.info("BullApi stopped")
 
@@ -383,6 +398,110 @@ class BullApi:
             "",
         )
         return res["result"]
+
+    async def async_confirm_ble_random(
+        self,
+        pid: int | str,
+        device_name: str,
+        *,
+        use_user_token: bool = True,
+        endpoint: str = "/mos/ble/v1/confirmRandom",
+    ) -> str:
+        """Request the BLE authentication challenge for a device."""
+        headers = {}
+        if use_user_token and self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+
+        response = await self.async_make_request(
+            "POST",
+            endpoint,
+            "application/json",
+            headers,
+            json.dumps(
+                {"pid": str(pid), "dn": device_name},
+                separators=(",", ":"),
+            ),
+        )
+        if not response.get("success"):
+            raise BullBleError(
+                f"confirmRandom rejected: code={response.get('code')}, message={response.get('message')!r}"
+            )
+        result = response.get("result") if isinstance(response, dict) else None
+        random_value = result.get("random") if isinstance(result, dict) else result
+        if not isinstance(random_value, str) or len(random_value.encode()) != 16:
+            raise BullBleError("cloud did not return a 16-byte BLE random")
+        return random_value
+
+    async def async_confirm_ble_device(
+        self, random_value: str, pid: int, device_name: str, cipher: bytes
+    ) -> str:
+        """Exchange the device cipher for this session's AES key."""
+        response = await self.async_make_request(
+            "POST",
+            "/mos/ble/v1/confirmDevice",
+            "application/json",
+            {"Authorization": f"Bearer {self.access_token}"},
+            json.dumps(
+                {
+                    "random": random_value,
+                    "pid": str(pid),
+                    "dn": device_name,
+                    "cipher": cipher.hex().upper(),
+                },
+                separators=(",", ":"),
+            ),
+        )
+        if not response.get("success"):
+            raise BullBleError(
+                f"confirmDevice rejected: code={response.get('code')}, message={response.get('message')!r}"
+            )
+        result = response.get("result") if isinstance(response, dict) else None
+        key = result.get("bleKey") if isinstance(result, dict) else result
+        if not isinstance(key, str) or len(key) != 32:
+            raise BullBleError("cloud did not return a 16-byte BLE AES key")
+        try:
+            bytes.fromhex(key)
+        except ValueError as error:
+            raise BullBleError("cloud returned a non-hex BLE AES key") from error
+        return key
+
+    @staticmethod
+    def _ble_identity(info: dict) -> BleIdentity | None:
+        """Extract the D3 cloud identity; only PID 309 is supported locally."""
+        product = info.get("product") if isinstance(info.get("product"), dict) else {}
+        pid = product.get("globalProductId", info.get("pid"))
+        dn = info.get("deviceName", info.get("dn"))
+        try:
+            pid = int(pid)
+        except (TypeError, ValueError):
+            return None
+        if pid != 309 or not isinstance(dn, str) or len(dn) != 12:
+            return None
+        return BleIdentity(pid, dn.upper())
+
+    async def async_setup_ble_chargers(self) -> None:
+        """Register BLE discovery for supported chargers in this account."""
+        if not self._hass:
+            return
+        from .ble_charger import BullBleCharger
+
+        for device in self.device_list.values():
+            identity = self._ble_identity(device.raw_info) or self._ble_identity(
+                device.raw_device_info
+            )
+            if not identity or device.ble_charger:
+                continue
+            device.ble_charger = BullBleCharger(
+                self._hass,
+                device,
+                identity,
+                self.async_confirm_ble_random,
+                self.async_confirm_ble_device,
+            )
+            await device.ble_charger.async_start()
+            _LOGGER.info(
+                "Registered local BLE charger %s (PID %s)", device.iot_id, identity.pid
+            )
 
     async def async_parse_device(self, info: dict) -> None:
         """Parse the device information."""

@@ -7,11 +7,12 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfTime,
     UnitOfTemperature,
-    SERVICE_RELOAD as SERVICE_RELOAD,
+    SERVICE_RELOAD as HA_SERVICE_RELOAD,
 )
 
 DOMAIN = "bull"
 BULL_API_CLIENTS = "bull_api_clients"
+SERVICE_RELOAD = HA_SERVICE_RELOAD
 SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor", "button"]
 
 # MosHome 5.1.13 production CloudAPI credentials.  These are application
@@ -47,7 +48,7 @@ SWITCH_PRODUCT_ID = {
     180,
     279,
 }
-CHARGER_PRODUCT_ID = {74, 75, 141, 196, 258}
+CHARGER_PRODUCT_ID = {74, 75, 141, 196, 258, 309}
 COVER_PRODUCT_ID = {31, 56}
 
 BUTTON_ENTITY_MAPPING = {
@@ -109,7 +110,66 @@ SENSOR_MAPPING = {
             1: "无感充电",
         },
     },
+    "WorkState": {
+        "name": "充电状态",
+        "unit": None,
+        "class": None,
+        "value_map": {
+            0: "待机",
+            1: "启动中",
+            2: "充电中",
+            3: "停止中",
+            4: "已完成",
+            5: "已暂停",
+            6: "故障",
+            7: "维护",
+            8: "待认证",
+            9: "定时中",
+            10: "降额充电",
+        },
+    },
+    "GunState": {
+        "name": "插枪状态",
+        "unit": None,
+        "class": None,
+        "value_map": {0: "未插枪", 1: "已插枪"},
+    },
     "DeviceRealInfo": {
+        "ChargeVoltage": {
+            "name": "实时电压",
+            "unit": UnitOfElectricPotential.VOLT,
+            "class": "voltage",
+        },
+        "ChargeCurrent": {
+            "name": "实时电流",
+            "unit": UnitOfElectricCurrent.AMPERE,
+            "class": "current",
+        },
+        "ChargeActivePower": {
+            "name": "实时功率",
+            "unit": UnitOfPower.KILO_WATT,
+            "class": "power",
+        },
+        "ChargeEnergyUsed": {
+            "name": "当前充电量",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "class": "energy",
+        },
+        "ChargeMBTemp": {
+            "name": "主板温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
+        "ChargeSlotTemp": {
+            "name": "插座温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
+        "ChargeGunTemp": {
+            "name": "枪头温度",
+            "unit": UnitOfTemperature.CELSIUS,
+            "class": "temperature",
+        },
         "EnergyUsed": {
             "name": "当前充电量",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
