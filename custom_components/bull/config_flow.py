@@ -29,6 +29,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             except Exception as e:
                 return await self.async_step_user(error=str(e))
+
+            await self.async_set_unique_id(self.bull_api.openid)
+            self._abort_if_unique_id_configured()
             return await self.async_step_select_family()
 
         return self.async_show_form(
