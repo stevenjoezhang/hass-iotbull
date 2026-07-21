@@ -58,7 +58,7 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 
 ## 支持的设备
 
-目前测试已支持的公牛智能设备包括：
+目前已适配的公牛智能设备包括：
 
 ### 开关和插座
 
@@ -83,6 +83,10 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | 158 | C100智能开关(二位零火) |
 | 159 | C100智能开关(三位零火) |
 | 180 | 大师轨道插座至尊款 |
+| 206 | C200语音四位开关 |
+| 219 | C200智能一位开关 |
+| 220 | C200智能二位开关 |
+| 221 | C200智能四位开关 |
 | 279 | 公牛隐形轨道插座 |
 
 ### 充电桩
@@ -93,7 +97,11 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | 75 | 7kW交流充电桩(风尚智联款) |
 | 141 | 21kW交流充电桩(风尚智联款) |
 | 196 | 单相7kW充电桩(乐享款) |
+| 199 | 21kW交流充电桩(乐享智联款) |
 | 258 | 7kW交流充电桩(乐享智联款) |
+| 274 | 7kW交流充电桩(天际智联款) |
+| 275 | 21kW交流充电桩(天际智联款) |
+| 309 | 7kW交流充电桩(优享蓝牙款) |
 
 ### 窗帘
 
