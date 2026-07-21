@@ -196,7 +196,7 @@ class BullDevice:
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
         self._sync_raw_info_value(identifier, prop)
-        if self._connectivity_entity:
+        if identifier == "status" and self._connectivity_entity:
             self._connectivity_entity.schedule_update_ha_state()
 
 
@@ -234,7 +234,7 @@ class BullSwitch(BullDevice):
             entity.schedule_update_ha_state()
         for button_entity in self._button_entities:
             button_entity.schedule_update_ha_state()
-        if self._connectivity_entity:
+        if identifier == "status" and self._connectivity_entity:
             self._connectivity_entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
 
@@ -253,7 +253,7 @@ class BullCover(BullDevice):
         entity = self._entity
         if entity:
             entity.schedule_update_ha_state()
-        if self._connectivity_entity:
+        if identifier == "status" and self._connectivity_entity:
             self._connectivity_entity.schedule_update_ha_state()
         _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
 

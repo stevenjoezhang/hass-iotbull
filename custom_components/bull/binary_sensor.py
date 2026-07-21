@@ -1,7 +1,5 @@
 """Entity definition for binary sensor devices."""
 
-from typing import Any
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -13,24 +11,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import BullDevice
 from .const import BULL_API_CLIENTS, DOMAIN
-
-
-def _flatten_dict(data: dict, prefix: str = "") -> dict:
-    flattened = {}
-    for key, value in data.items():
-        flat_key = f"{prefix}.{key}" if prefix else str(key)
-        if isinstance(value, dict):
-            flattened.update(_flatten_dict(value, flat_key))
-        elif isinstance(value, list):
-            for index, item in enumerate(value):
-                list_key = f"{flat_key}.{index}"
-                if isinstance(item, dict):
-                    flattened.update(_flatten_dict(item, list_key))
-                else:
-                    flattened[list_key] = item
-        else:
-            flattened[flat_key] = value
-    return flattened
 
 
 class BullConnectivityBinarySensorEntity(BinarySensorEntity):
@@ -66,19 +46,6 @@ class BullConnectivityBinarySensorEntity(BinarySensorEntity):
     def is_on(self) -> bool:
         """Return if connectivity is online."""
         return self._device.available
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes."""
-        attrs: dict[str, Any] = {}
-        attrs.update(_flatten_dict(getattr(self._device, "raw_info", {}), "info"))
-        attrs.update(
-            _flatten_dict(getattr(self._device, "raw_device_info", {}), "device_info")
-        )
-        attrs.update(
-            _flatten_dict(getattr(self._device, "identifier_values", {}), "realtime")
-        )
-        return attrs
 
 
 async def async_setup_entry(
