@@ -1,6 +1,10 @@
 """Entity definition for cover devices."""
 
-from homeassistant.components.cover import CoverEntity
+from homeassistant.components.cover import (
+    ATTR_POSITION,
+    CoverEntity,
+    CoverEntityFeature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -16,6 +20,12 @@ class BullCoverEntity(CoverEntity):
     def __init__(self, device: BullDevice) -> None:
         self._device = device
         self._attr_should_poll = False
+        self._attr_supported_features = (
+            CoverEntityFeature.OPEN
+            | CoverEntityFeature.CLOSE
+            | CoverEntityFeature.SET_POSITION
+            | CoverEntityFeature.STOP
+        )
         device._entity = self
 
     @property
@@ -48,14 +58,15 @@ class BullCoverEntity(CoverEntity):
         return self._device.available
 
     @property
-    def current_cover_position(self) -> int:
+    def current_cover_position(self) -> int | None:
         """Return the current position of cover where 0 means closed and 100 is fully open."""
-        return self._device.identifier_values["curtainPosition"]
+        return self._device.identifier_values.get("curtainPosition")
 
     @property
-    def is_closed(self) -> bool:
+    def is_closed(self) -> bool | None:
         """Return if the cover is closed."""
-        return self._device.identifier_values["curtainPosition"] == 0
+        position = self.current_cover_position
+        return position == 0 if position is not None else None
 
     async def async_open_cover(self, **kwargs):
         """Open the cover."""
@@ -68,6 +79,10 @@ class BullCoverEntity(CoverEntity):
     async def async_stop_cover(self, **kwargs):
         """Stop the cover."""
         await self._device.set_dp("curtainConrtol", 2)
+
+    async def async_set_cover_position(self, **kwargs):
+        """Move the cover to a specific position."""
+        await self._device.set_dp("curtainPosition", kwargs[ATTR_POSITION])
 
 
 async def async_setup_entry(
