@@ -1,5 +1,6 @@
 """API interactions for bull-iot integration."""
 
+import asyncio
 from datetime import datetime, timezone
 import uuid
 import hmac
@@ -96,6 +97,11 @@ class BullDevice:
     @property
     def available(self) -> bool:
         """Return True if the device is available."""
+        # A supported BLE charger deliberately has no cloud-control fallback:
+        # its entities are available only while the authenticated GATT owner is
+        # up. Other product types retain their cloud/MQTT availability.
+        if self.ble_charger is not None:
+            return self.ble_available
         # status is ONLINE or OFFLINE from /v2/home/devices API
         # It may change to int from thing.status mqtt message
         # 1 - Online, 3 - Offline
@@ -109,6 +115,21 @@ class BullDevice:
 
     async def invoke_thing_service(self, identifier: str):
         await self._cloud.invoke_thing_service(self.iot_id, identifier)
+
+    def _schedule_availability_update(self) -> None:
+        """Schedule state updates for entities whose availability may change."""
+        if self._connectivity_entity:
+            self._connectivity_entity.schedule_update_ha_state()
+
+    def set_ble_available(self, available: bool) -> None:
+        """Publish a BLE availability change to every entity for this device."""
+        available = bool(available)
+        if self.ble_available == available:
+            return
+
+        self.ble_available = available
+        self._schedule_availability_update()
+        _LOGGER.debug("Update device BLE availability: %s %s", self.iot_id, available)
 
     def _sync_raw_info_value(self, identifier: str, value) -> None:
         """Sync incremental MQTT value into raw_info property snapshot."""
@@ -157,6 +178,20 @@ class BullSwitch(BullDevice):
         # Key is identifier, value is entity
         self._entities = {}
         self._button_entities = []
+
+    def _schedule_availability_update(self) -> None:
+        """Schedule state updates for all switch, sensor, and button entities."""
+        entities = [
+            *self._entities.values(),
+            *self._button_entities,
+            self._connectivity_entity,
+        ]
+        scheduled_ids = set()
+        for entity in entities:
+            if entity is None or id(entity) in scheduled_ids:
+                continue
+            scheduled_ids.add(id(entity))
+            entity.schedule_update_ha_state()
 
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
@@ -221,17 +256,17 @@ class BullApi:
         self.init_mqtt()
         _LOGGER.info("BullApi started")
 
-    def destroy(self) -> None:
+    async def async_destroy(self) -> None:
         """Destroy the Bull IoT API."""
         self.stop_mqtt()
+        chargers = []
         for device in self.device_list.values():
             charger = device.ble_charger
             if charger:
-                # Clear the reference synchronously so a subsequent reload can
-                # register its replacement even while this coordinator's
-                # unsubscribe callbacks are being awaited.
                 device.ble_charger = None
-                self._hass.async_create_task(charger.async_stop())
+                chargers.append(charger)
+        if chargers:
+            await asyncio.gather(*(charger.async_stop() for charger in chargers))
         # FIXME: old devices are not removed during reload
         _LOGGER.info("BullApi stopped")
 
@@ -399,6 +434,7 @@ class BullApi:
         )
         return res["result"]
 
+    @retry
     async def async_confirm_ble_random(
         self,
         pid: int | str,
@@ -432,6 +468,7 @@ class BullApi:
             raise BullBleError("cloud did not return a 16-byte BLE random")
         return random_value
 
+    @retry
     async def async_confirm_ble_device(
         self, random_value: str, pid: int, device_name: str, cipher: bytes
     ) -> str:

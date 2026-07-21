@@ -1,8 +1,9 @@
 """Local FEB3 BLE transport for the Bull D3-B32EB charger.
 
-The transport deliberately accepts a ``BLEDevice`` supplied by Home
-Assistant's bluetooth integration.  It must never start its own scanner: that
-is what makes local adapters and ESPHome Bluetooth Proxies interchangeable.
+The protocol session deliberately accepts an already-connected ``BleakClient``
+created from Home Assistant's preferred Bluetooth route.  It never starts its
+own scanner or owns reconnection, so local adapters and ESPHome Bluetooth
+Proxies remain interchangeable.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 import logging
 
 from bleak import BleakClient
-from bleak.backends.device import BLEDevice
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ CMD_AUTH_RANDOM = 0x10
 CMD_AUTH_CIPHER = 0x11
 CMD_AUTH_RESULT = 0x12
 CMD_AUTH_DONE = 0x13
+
 
 class BullBleError(RuntimeError):
     """A local Gongniu BLE operation failed."""
@@ -93,9 +95,17 @@ class _Reassembler:
         payload: bytes,
     ) -> bytes | None:
         key = (message_id, command, encrypted)
-        parts = self._parts.setdefault(key, {})
+        if not 0 <= index <= last <= 15:
+            raise BullBleError("invalid BLE fragment index")
+        if index == 0 or key not in self._parts:
+            self._parts[key] = {}
+            self._last[key] = last
+        elif self._last[key] != last:
+            self._parts.pop(key, None)
+            self._last.pop(key, None)
+            raise BullBleError("inconsistent BLE fragment count")
+        parts = self._parts[key]
         parts[index] = payload
-        self._last[key] = last
         if len(parts) != last + 1 or any(part not in parts for part in range(last + 1)):
             return None
         result = b"".join(parts[index] for index in range(last + 1))
@@ -105,121 +115,198 @@ class _Reassembler:
 
 
 class BullBleSession:
-    """One connected, cloud-authenticated local D3-B32EB session."""
+    """Protocol state for one externally connected D3-B32EB BLE client."""
 
     def __init__(
         self,
-        device: BLEDevice,
+        client: BleakClient,
         identity: BleIdentity,
         confirm_random: Callable[[int, str], Awaitable[str]],
         confirm_device: Callable[[str, int, str, bytes], Awaitable[str]],
         event_callback: Callable[[BusinessMessage], Awaitable[None]] | None = None,
     ) -> None:
-        self._device = device
+        self._client = client
         self._identity = identity
         self._confirm_random = confirm_random
         self._confirm_device = confirm_device
         self._event_callback = event_callback
-        self._client = BleakClient(device, timeout=15)
-        self._write = None
+        self._write: BleakGATTCharacteristic | None = None
         self._response = True
         self._queue: asyncio.Queue[bytes] = asyncio.Queue()
         self._reassembler = _Reassembler()
         self._message_id = 0
         self._key: bytes | None = None
         self._iv: bytes | None = None
+        self._pending: dict[int, asyncio.Future[BusinessMessage]] = {}
+        self._request_lock = asyncio.Lock()
+        self._reader_task: asyncio.Task[None] | None = None
 
     def _next_id(self) -> int:
         self._message_id = self._message_id % 15 + 1
         return self._message_id
 
-    def _notification(self, _sender: int, data: bytearray) -> None:
+    def _notification(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
         self._queue.put_nowait(bytes(data))
 
-    async def __aenter__(self) -> "BullBleSession":
-        try:
-            await self._client.connect()
-            services = self._client.services
-            if services.get_service(SERVICE_UUID) is None:
-                raise BullBleError("device does not expose Gongniu FEB3 service")
-            characteristic = services.get_characteristic(WRITE_UUID)
-            if characteristic is not None and "write" in characteristic.properties:
-                self._write, self._response = characteristic, True
-            else:
-                characteristic = services.get_characteristic(WRITE_NO_RESPONSE_UUID)
-                if characteristic is None:
-                    raise BullBleError(
-                        "device has no supported Gongniu write characteristic"
-                    )
-                self._write, self._response = characteristic, False
-            subscribed = False
-            for uuid, capability in (
-                (NOTIFY_UUID, "notify"),
-                (INDICATE_UUID, "indicate"),
-            ):
-                characteristic = services.get_characteristic(uuid)
-                if (
-                    characteristic is not None
-                    and capability in characteristic.properties
-                ):
-                    await self._client.start_notify(characteristic, self._notification)
-                    subscribed = True
-            if not subscribed:
-                raise BullBleError("device has no Gongniu notification characteristic")
-            await self._authenticate()
-            return self
-        except Exception:
-            if self._client.is_connected:
-                try:
-                    await self._client.disconnect()
-                except Exception:  # pragma: no cover - depends on BLE backend
-                    _LOGGER.debug("BLE cleanup after setup failure failed", exc_info=True)
-            raise
+    async def async_start(self) -> None:
+        """Subscribe, authenticate, and start the lifetime notification reader."""
+        if not self._client.is_connected:
+            raise BullBleError("BLE client disconnected before session setup")
 
-    async def __aexit__(self, *_exc: object) -> None:
-        if self._client.is_connected:
-            await self._client.disconnect()
+        services = self._client.services
+        if services.get_service(SERVICE_UUID) is None:
+            raise BullBleError("device does not expose Gongniu FEB3 service")
+        characteristic = services.get_characteristic(WRITE_UUID)
+        if characteristic is not None and "write" in characteristic.properties:
+            self._write, self._response = characteristic, True
+        else:
+            characteristic = services.get_characteristic(WRITE_NO_RESPONSE_UUID)
+            if characteristic is None:
+                raise BullBleError(
+                    "device has no supported Gongniu write characteristic"
+                )
+            self._write, self._response = characteristic, False
+
+        subscribed = False
+        for uuid, capability in (
+            (NOTIFY_UUID, "notify"),
+            (INDICATE_UUID, "indicate"),
+        ):
+            characteristic = services.get_characteristic(uuid)
+            if characteristic is not None and capability in characteristic.properties:
+                await self._client.start_notify(characteristic, self._notification)
+                subscribed = True
+        if not subscribed:
+            raise BullBleError("device has no Gongniu notification characteristic")
+
+        await self._authenticate()
+        self._reader_task = asyncio.create_task(
+            self._reader_loop(), name=f"Bull BLE reader {self._identity.dn}"
+        )
+
+    async def async_stop(self) -> None:
+        """Stop the notification reader without owning the GATT connection."""
+        task = self._reader_task
+        self._reader_task = None
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            _LOGGER.debug("BLE reader stopped with an error", exc_info=True)
+
+    def disconnected(self) -> None:
+        """Unblock pending requests after the GATT disconnected callback fires."""
+        task = self._reader_task
+        if task and not task.done():
+            task.cancel()
+
+    async def async_wait_stopped(self) -> None:
+        """Wait until the lifetime reader fails or is cancelled."""
+        task = self._reader_task
+        if task is None:
+            raise BullBleError("BLE notification reader is not running")
+        await asyncio.shield(task)
 
     async def _send_plain(self, command: int, payload: bytes) -> int:
+        write = self._write
+        if write is None:
+            raise BullBleError("BLE write characteristic is not initialized")
         message_id = self._next_id()
         frame = bytes((message_id, command, 0, len(payload))) + payload
-        await self._client.write_gatt_char(self._write, frame, response=self._response)
+        await self._client.write_gatt_char(write, frame, response=self._response)
         return message_id
 
     async def _send_encrypted(self, command: int, payload: bytes) -> int:
         if self._key is None or self._iv is None:
             raise BullBleError("BLE session has not authenticated")
         message_id = self._next_id()
-        cipher = _encrypt(payload, self._key, self._iv)
-        frame = bytes((0x10 | message_id, command, 0, len(payload))) + cipher
-        await self._client.write_gatt_char(self._write, frame, response=self._response)
+        await self._write_encrypted(message_id, command, payload)
         return message_id
 
-    async def _next(self, timeout: float) -> tuple[int, int, bytes]:
+    async def _write_encrypted(
+        self, message_id: int, command: int, payload: bytes
+    ) -> None:
+        if self._key is None or self._iv is None:
+            raise BullBleError("BLE session has not authenticated")
+        write = self._write
+        if write is None:
+            raise BullBleError("BLE write characteristic is not initialized")
+        cipher = _encrypt(payload, self._key, self._iv)
+        frame = bytes((0x10 | message_id, command, 0, len(payload))) + cipher
+        await self._client.write_gatt_char(write, frame, response=self._response)
+
+    async def _next(self, timeout: float | None) -> tuple[int, int, bytes]:
+        loop = asyncio.get_running_loop()
+        deadline = None if timeout is None else loop.time() + timeout
+        while True:
+            try:
+                if deadline is None:
+                    raw = await self._queue.get()
+                else:
+                    raw = await asyncio.wait_for(
+                        self._queue.get(), max(0.1, deadline - loop.time())
+                    )
+            except asyncio.TimeoutError as error:
+                raise BullBleError("timed out waiting for BLE response") from error
+            if len(raw) < 4:
+                raise BullBleError("short BLE frame")
+            message_id, command, fragment, clear_length = (
+                raw[0] & 0x0F,
+                raw[1],
+                raw[2],
+                raw[3],
+            )
+            encrypted = bool(raw[0] & 0x10) and command not in (0x20, 0x21)
+            payload = raw[4:]
+            if encrypted:
+                if self._key is None or self._iv is None:
+                    raise BullBleError("received encrypted frame before authentication")
+                payload = _decrypt(payload, clear_length, self._key, self._iv)
+            assembled = self._reassembler.add(
+                message_id,
+                command,
+                encrypted,
+                fragment & 0x0F,
+                fragment >> 4,
+                payload,
+            )
+            if assembled is not None:
+                return message_id, command, assembled
+
+    async def _reader_loop(self) -> None:
+        """Continuously dispatch responses and unsolicited business events."""
         try:
-            raw = await asyncio.wait_for(self._queue.get(), timeout)
-        except asyncio.TimeoutError as error:
-            raise BullBleError("timed out waiting for BLE response") from error
-        if len(raw) < 4:
-            raise BullBleError("short BLE frame")
-        message_id, command, fragment, clear_length = (
-            raw[0] & 0x0F,
-            raw[1],
-            raw[2],
-            raw[3],
-        )
-        encrypted = bool(raw[0] & 0x10) and command not in (0x20, 0x21)
-        payload = raw[4:]
-        if encrypted:
-            if self._key is None or self._iv is None:
-                raise BullBleError("received encrypted frame before authentication")
-            payload = _decrypt(payload, clear_length, self._key, self._iv)
-        assembled = self._reassembler.add(
-            message_id, command, encrypted, fragment & 0x0F, fragment >> 4, payload
-        )
-        if assembled is None:
-            return await self._next(timeout)
-        return message_id, command, assembled
+            while True:
+                message_id, command, payload = await self._next(None)
+                message = self._business(command, message_id, payload)
+                if command in (CMD_EVENT, CMD_BUBBLING_EVENT):
+                    if self._event_callback:
+                        try:
+                            await self._event_callback(message)
+                        except Exception:
+                            _LOGGER.exception("Failed to apply a Bull BLE event")
+                    continue
+
+                future = self._pending.get(message_id)
+                if command == CMD_RESPONSE and future and not future.done():
+                    future.set_result(message)
+                    continue
+
+                _LOGGER.debug(
+                    "Ignored unsolicited BLE command 0x%02x message_id=%d",
+                    command,
+                    message_id,
+                )
+        finally:
+            error = BullBleError("BLE notification reader stopped")
+            for future in self._pending.values():
+                if not future.done():
+                    future.set_exception(error)
 
     async def _wait_command(self, command: int, timeout: float = 12) -> bytes:
         deadline = asyncio.get_running_loop().time() + timeout
@@ -263,29 +350,34 @@ class BullBleSession:
     async def request(
         self, attr_type: int, value: bytes | None = None
     ) -> BusinessMessage:
-        transaction_id = self._next_id()
-        opcode = 0xD0 if value is None else 0xD1
-        inner = (
-            b"\x41"
-            + bytes((opcode,))
-            + b"\x12\x07"
-            + bytes((transaction_id,))
-            + attr_type.to_bytes(2, "little")
-            + (value or b"")
-        )
-        message_id = await self._send_encrypted(CMD_REQUEST, inner)
-        deadline = asyncio.get_running_loop().time() + 12
-        while True:
-            outer_id, command, payload = await self._next(
-                max(0.1, deadline - asyncio.get_running_loop().time())
+        async with self._request_lock:
+            if not self._client.is_connected:
+                raise BullBleError("BLE client is disconnected")
+            if self._reader_task is None or self._reader_task.done():
+                raise BullBleError("BLE notification reader is not running")
+
+            transaction_id = self._next_id()
+            opcode = 0xD0 if value is None else 0xD1
+            inner = (
+                b"\x41"
+                + bytes((opcode,))
+                + b"\x12\x07"
+                + bytes((transaction_id,))
+                + attr_type.to_bytes(2, "little")
+                + (value or b"")
             )
-            message = self._business(command, outer_id, payload)
-            if command in (CMD_EVENT, CMD_BUBBLING_EVENT):
-                if self._event_callback:
-                    await self._event_callback(message)
-                continue
-            if command == CMD_RESPONSE and outer_id == message_id:
-                return message
+            message_id = self._next_id()
+            future = asyncio.get_running_loop().create_future()
+            self._pending[message_id] = future
+            try:
+                await self._write_encrypted(message_id, CMD_REQUEST, inner)
+                return await asyncio.wait_for(asyncio.shield(future), 12)
+            except asyncio.TimeoutError as error:
+                raise BullBleError("timed out waiting for BLE response") from error
+            finally:
+                self._pending.pop(message_id, None)
+                if not future.done():
+                    future.cancel()
 
     async def send_service(self, attr_type: int) -> None:
         """Transmit an empty-input D1 service without assuming a business ACK.

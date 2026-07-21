@@ -21,7 +21,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     # Support for reloading in Developer Tools
     async def _handle_reload_config(service):
         for bull_api in hass.data[DOMAIN][BULL_API_CLIENTS].values():
-            bull_api.destroy()
+            await bull_api.async_destroy()
             await bull_api.setup()
 
     async_register_admin_service(
@@ -48,12 +48,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload or reload a config entry."""
-    bull_api = hass.data[DOMAIN][BULL_API_CLIENTS].pop(entry.entry_id, None)
+    bull_api = hass.data[DOMAIN][BULL_API_CLIENTS].get(entry.entry_id)
     # Not registered if setup fails
     if not bull_api:
         return True
 
-    bull_api.destroy()
-
-    await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS)
+    if not await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS):
+        return False
+    hass.data[DOMAIN][BULL_API_CLIENTS].pop(entry.entry_id, None)
+    await bull_api.async_destroy()
     return True

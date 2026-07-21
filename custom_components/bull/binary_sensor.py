@@ -65,10 +65,7 @@ class BullConnectivityBinarySensorEntity(BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return if connectivity is online."""
-        raw_info = getattr(self._device, "raw_info", {})
-        if not isinstance(raw_info, dict):
-            return False
-        return raw_info.get("status") in ("ONLINE", 1)
+        return self._device.available
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
