@@ -7,7 +7,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfTime,
     UnitOfTemperature,
-    SERVICE_RELOAD,
+    SERVICE_RELOAD as SERVICE_RELOAD,
 )
 
 DOMAIN = "bull"
@@ -56,11 +56,7 @@ BUTTON_ENTITY_MAPPING = {
             "entity_identifier": "activate_charging",
             "name": "激活充电",
             "service_identifier": "SheduleAuth",
-            "available_condition": {
-                "all": [
-                    {"DeviceWorkState.WorkState": 8}
-                ]
-            },
+            "available_condition": {"all": [{"DeviceWorkState.WorkState": 8}]},
         }
     ]
 }
@@ -132,7 +128,7 @@ SENSOR_MAPPING = {
         "ActivePower": {
             "name": "实时功率",
             "unit": UnitOfPower.KILO_WATT,
-            "class": "power"
+            "class": "power",
         },
         "GunTemp": {
             "name": "枪头温度",
@@ -171,5 +167,5 @@ SENSOR_MAPPING = {
                 1: "已插枪",
             },
         },
-    }
+    },
 }

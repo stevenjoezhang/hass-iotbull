@@ -13,18 +13,24 @@ def _matches_condition(identifier_values: dict, condition: dict) -> bool:
     all_conditions = condition.get("all")
     if all_conditions is not None:
         return all(
-            all(identifier_values.get(key) == expected for key, expected in item.items())
+            all(
+                identifier_values.get(key) == expected for key, expected in item.items()
+            )
             for item in all_conditions
         )
 
     any_conditions = condition.get("any")
     if any_conditions is not None:
         return any(
-            all(identifier_values.get(key) == expected for key, expected in item.items())
+            all(
+                identifier_values.get(key) == expected for key, expected in item.items()
+            )
             for item in any_conditions
         )
 
-    return all(identifier_values.get(key) == expected for key, expected in condition.items())
+    return all(
+        identifier_values.get(key) == expected for key, expected in condition.items()
+    )
 
 
 class BullMappedButtonEntity(ButtonEntity):
@@ -50,9 +56,7 @@ class BullMappedButtonEntity(ButtonEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {
-                (DOMAIN, self._device.iot_id)
-            },
+            "identifiers": {(DOMAIN, self._device.iot_id)},
             "name": f"{self._device.room}{self._device.nick_name}",
             "manufacturer": "Bull",
             "model": self._device.product_name,
@@ -76,7 +80,9 @@ class BullMappedButtonEntity(ButtonEntity):
             return False
         if not self._available_condition:
             return True
-        return _matches_condition(self._device.identifier_values, self._available_condition)
+        return _matches_condition(
+            self._device.identifier_values, self._available_condition
+        )
 
     async def async_press(self) -> None:
         await self._device.invoke_thing_service(self._service_identifier)

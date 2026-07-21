@@ -61,7 +61,9 @@ TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
 )
 
 
-async def async_get_triggers(hass: HomeAssistant, device_id: str) -> list[dict[str, Any]]:
+async def async_get_triggers(
+    hass: HomeAssistant, device_id: str
+) -> list[dict[str, Any]]:
     """List device triggers for a Bull device."""
     registry = er.async_get(hass)
     entries = er.async_entries_for_device(

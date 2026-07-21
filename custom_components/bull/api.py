@@ -187,7 +187,7 @@ class BullCover(BullDevice):
 class BullApi:
     """A class to represent the Bull IoT API."""
 
-    def __init__(self, hass = None, data: dict = {}) -> None:
+    def __init__(self, hass=None, data: dict = {}) -> None:
         self._hass = hass
         if data:
             self.deserialize(data)
@@ -296,9 +296,7 @@ class BullApi:
         pad_length = 16 - len(plain) % 16
         padded = plain + bytes([pad_length]) * pad_length
         iv = os.urandom(16)
-        cipher = Cipher(
-            algorithms.AES(base64.b64decode(LOGIN_AES_KEY)), modes.CBC(iv)
-        )
+        cipher = Cipher(algorithms.AES(base64.b64decode(LOGIN_AES_KEY)), modes.CBC(iv))
         encryptor = cipher.encryptor()
         return (iv + encryptor.update(padded) + encryptor.finalize()).hex().upper()
 
@@ -408,12 +406,14 @@ class BullApi:
         # 2. Handle device name (prefer nickName from deviceEntity: true)
         if is_device_entity:
             device.nick_name = info.get("nickName", device.nick_name)
-            return # Do not create entity for the main device entry
+            return  # Do not create entity for the main device entry
 
         # 3. Handle functional entities
         if global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             if element_identifier:
-                device.identifier_names[element_identifier] = info.get("nickName", element_identifier)
+                device.identifier_names[element_identifier] = info.get(
+                    "nickName", element_identifier
+                )
         elif global_product_id in COVER_PRODUCT_ID:
             device.name = info.get("nickName", device.nick_name)
         else:
@@ -450,6 +450,7 @@ class BullApi:
             for child_identifier, child_value in value.items():
                 flattened[f"{identifier}.{child_identifier}"] = child_value
         return flattened
+
     async def async_parse_devices(self, db) -> None:
         """Parse the devices information."""
         for info in db["result"]:
@@ -526,9 +527,13 @@ class BullApi:
             if rc != mqtt.MQTT_ERR_SUCCESS:
                 return
 
-            subscribe_rc, _ = client.subscribe("/sys/app/down/account/bind_reply", qos=0)
+            subscribe_rc, _ = client.subscribe(
+                "/sys/app/down/account/bind_reply", qos=0
+            )
             if subscribe_rc != mqtt.MQTT_ERR_SUCCESS:
-                _LOGGER.warning("MQTT bind-reply subscription failed: rc=%d", subscribe_rc)
+                _LOGGER.warning(
+                    "MQTT bind-reply subscription failed: rc=%d", subscribe_rc
+                )
             payload = {
                 "id": "msg_id_bind_85",
                 "params": {"token": self.access_token},
@@ -550,7 +555,10 @@ class BullApi:
                 iot_id = db["params"]["iotId"]
                 items = db["params"]["items"]
                 for identifier, info in items.items():
-                    for flattened_key, flattened_value in self._flatten_identifier_values(
+                    for (
+                        flattened_key,
+                        flattened_value,
+                    ) in self._flatten_identifier_values(
                         identifier, info["value"]
                     ).items():
                         cb(iot_id, flattened_key, flattened_value)

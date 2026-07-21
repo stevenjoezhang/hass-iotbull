@@ -75,8 +75,12 @@ class BullConnectivityBinarySensorEntity(BinarySensorEntity):
         """Return extra state attributes."""
         attrs: dict[str, Any] = {}
         attrs.update(_flatten_dict(getattr(self._device, "raw_info", {}), "info"))
-        attrs.update(_flatten_dict(getattr(self._device, "raw_device_info", {}), "device_info"))
-        attrs.update(_flatten_dict(getattr(self._device, "identifier_values", {}), "realtime"))
+        attrs.update(
+            _flatten_dict(getattr(self._device, "raw_device_info", {}), "device_info")
+        )
+        attrs.update(
+            _flatten_dict(getattr(self._device, "identifier_values", {}), "realtime")
+        )
         return attrs
 
 
