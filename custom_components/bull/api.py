@@ -664,7 +664,10 @@ class BullApi:
                 device = BullCover(self, info)
             else:
                 device = BullDevice(self, info)
-            await self.async_add_new_device(device, info)
+            await self._async_initialize_device(device, info)
+            # Publish only fully initialized objects. If any parsing or cloud
+            # request above fails, a retry must build the device from scratch.
+            self.device_list[iot_id] = device
 
         # 2. Handle device name (prefer nickName from deviceEntity: true)
         if is_device_entity:
@@ -688,9 +691,8 @@ class BullApi:
                 device.model_name,
             )
 
-    async def async_add_new_device(self, device: BullDevice, info: dict) -> None:
-        """Add a new device to the device list."""
-        self.device_list[device.iot_id] = device
+    async def _async_initialize_device(self, device: BullDevice, info: dict) -> None:
+        """Populate a device completely before exposing it through device_list."""
         device.raw_info = info
         for prop in info["property"].values():
             key = prop["identifier"]
