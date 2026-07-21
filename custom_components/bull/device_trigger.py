@@ -27,30 +27,53 @@ from .const import DOMAIN
 
 TRIGGER_TYPES = {
     "work_state_idle": {
-        "sensor_key": "DeviceWorkState.WorkState",
-        "to": "未工作",
+        "DeviceWorkState.WorkState": "未工作",
+        "WorkState": "待机",
     },
     "work_state_charging": {
-        "sensor_key": "DeviceWorkState.WorkState",
-        "to": "充电中",
+        "DeviceWorkState.WorkState": "充电中",
+        "WorkState": "充电中",
     },
     "work_state_gun_inserted_not_activated": {
-        "sensor_key": "DeviceWorkState.WorkState",
-        "to": "已插枪未激活",
+        "DeviceWorkState.WorkState": "已插枪未激活",
     },
     "work_state_gun_inserted_activated": {
-        "sensor_key": "DeviceWorkState.WorkState",
-        "to": "已插枪已激活",
+        "DeviceWorkState.WorkState": "已插枪已激活",
     },
     "gun_state_unplugged": {
-        "sensor_key": "DeviceWorkState.GunState",
-        "to": "未插枪",
+        "DeviceWorkState.GunState": "未插枪",
+        "GunState": "未插枪",
     },
     "gun_state_plugged": {
-        "sensor_key": "DeviceWorkState.GunState",
-        "to": "已插枪",
+        "DeviceWorkState.GunState": "已插枪",
+        "GunState": "已插枪",
     },
 }
+
+SENSOR_KEYS = tuple(
+    sorted(
+        {sensor_key for states in TRIGGER_TYPES.values() for sensor_key in states},
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def _sensor_key_from_unique_id(unique_id: str) -> str | None:
+    """Resolve legacy nested and PID 309 flat sensor identifiers."""
+    return next(
+        (key for key in SENSOR_KEYS if unique_id.endswith(f".{key}")),
+        None,
+    )
+
+
+def _trigger_state_from_unique_id(trigger_type: str, unique_id: str) -> str | None:
+    """Return the state associated with a trigger for one sensor variant."""
+    sensor_key = _sensor_key_from_unique_id(unique_id)
+    if sensor_key is None:
+        return None
+    return TRIGGER_TYPES[trigger_type].get(sensor_key)
+
 
 TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     {
@@ -78,25 +101,26 @@ async def async_get_triggers(
             continue
         if not entry.unique_id:
             continue
-        if entry.unique_id.endswith("DeviceWorkState.WorkState"):
-            entities_by_key["DeviceWorkState.WorkState"] = entry.entity_id
-        elif entry.unique_id.endswith("DeviceWorkState.GunState"):
-            entities_by_key["DeviceWorkState.GunState"] = entry.entity_id
+        sensor_key = _sensor_key_from_unique_id(entry.unique_id)
+        if sensor_key:
+            entities_by_key[sensor_key] = entry.entity_id
 
     triggers: list[dict[str, Any]] = []
-    for trigger_type, config in TRIGGER_TYPES.items():
-        entity_id = entities_by_key.get(config["sensor_key"])
-        if not entity_id:
-            continue
-        triggers.append(
-            {
-                CONF_PLATFORM: "device",
-                CONF_DOMAIN: DOMAIN,
-                CONF_DEVICE_ID: device_id,
-                CONF_ENTITY_ID: entity_id,
-                CONF_TYPE: trigger_type,
-            }
-        )
+    for trigger_type, states_by_sensor_key in TRIGGER_TYPES.items():
+        for sensor_key in states_by_sensor_key:
+            entity_id = entities_by_key.get(sensor_key)
+            if not entity_id:
+                continue
+            triggers.append(
+                {
+                    CONF_PLATFORM: "device",
+                    CONF_DOMAIN: DOMAIN,
+                    CONF_DEVICE_ID: device_id,
+                    CONF_ENTITY_ID: entity_id,
+                    CONF_TYPE: trigger_type,
+                }
+            )
+            break
 
     return triggers
 
@@ -119,16 +143,21 @@ async def async_attach_trigger(
     trigger_info: TriggerInfo,
 ) -> CALLBACK_TYPE:
     """Attach a trigger."""
-    trigger = TRIGGER_TYPES[config[CONF_TYPE]]
+    registry = er.async_get(hass)
+    entity = registry.async_get(config[CONF_ENTITY_ID])
+    target_state = (
+        _trigger_state_from_unique_id(config[CONF_TYPE], entity.unique_id)
+        if entity and entity.unique_id
+        else None
+    )
+    if target_state is None:
+        raise vol.Invalid("trigger entity does not match its configured type")
 
     state_config: dict[str, Any] = {
         CONF_PLATFORM: "state",
         CONF_ENTITY_ID: config[CONF_ENTITY_ID],
+        "to": target_state,
     }
-    if "to" in trigger:
-        state_config["to"] = trigger["to"]
-    if "from" in trigger:
-        state_config["from"] = trigger["from"]
     if CONF_FOR in config:
         state_config[CONF_FOR] = config[CONF_FOR]
 
