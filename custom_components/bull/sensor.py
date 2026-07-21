@@ -111,7 +111,6 @@ async def async_setup_entry(
     ble_value_keys = {
         "WorkState",
         "GunState",
-        "ChargeMode",
         "DeviceFaultCodeInfo",
         "DeviceRealInfo.ChargingTime",
         "DeviceRealInfo.ChargeVoltage",
@@ -126,6 +125,8 @@ async def async_setup_entry(
     for device in bull_api.device_list.values():
         if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
             for entity_identifier, value_key, meta in sensor_specs:
+                if device.ble_charger and value_key == "ChargeMode":
+                    continue
                 if value_key in device.identifier_values or (
                     device.ble_charger and value_key in ble_value_keys
                 ):

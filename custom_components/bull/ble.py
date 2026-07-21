@@ -33,6 +33,7 @@ CMD_AUTH_RANDOM = 0x10
 CMD_AUTH_CIPHER = 0x11
 CMD_AUTH_RESULT = 0x12
 CMD_AUTH_DONE = 0x13
+RESPONSE_OPCODE = 0xD3
 
 
 class BullBleError(RuntimeError):
@@ -54,8 +55,18 @@ class BusinessMessage:
     command: int
     message_id: int
     opcode: int | None
+    transaction_id: int | None
     attr_type: int | None
     value: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class _PendingRequest:
+    """Expected identifiers and waiter for one business response."""
+
+    transaction_id: int
+    attr_type: int
+    future: asyncio.Future[BusinessMessage]
 
 
 def _pad(data: bytes) -> bytes:
@@ -137,7 +148,7 @@ class BullBleSession:
         self._message_id = 0
         self._key: bytes | None = None
         self._iv: bytes | None = None
-        self._pending: dict[int, asyncio.Future[BusinessMessage]] = {}
+        self._pending: dict[int, _PendingRequest] = {}
         self._request_lock = asyncio.Lock()
         self._reader_task: asyncio.Task[None] | None = None
 
@@ -292,9 +303,35 @@ class BullBleSession:
                             _LOGGER.exception("Failed to apply a Bull BLE event")
                     continue
 
-                future = self._pending.get(message_id)
-                if command == CMD_RESPONSE and future and not future.done():
-                    future.set_result(message)
+                pending = self._pending.get(message_id)
+                if command == CMD_RESPONSE and pending and not pending.future.done():
+                    if (
+                        message.opcode != RESPONSE_OPCODE
+                        or message.transaction_id != pending.transaction_id
+                        or message.attr_type != pending.attr_type
+                    ):
+                        _LOGGER.debug(
+                            "Ignored mismatched BLE response message_id=%d: "
+                            "opcode=%s transaction_id=%s attr_type=%s; "
+                            "expected opcode=0x%02x transaction_id=%d attr_type=0x%04x",
+                            message_id,
+                            (
+                                f"0x{message.opcode:02x}"
+                                if message.opcode is not None
+                                else None
+                            ),
+                            message.transaction_id,
+                            (
+                                f"0x{message.attr_type:04x}"
+                                if message.attr_type is not None
+                                else None
+                            ),
+                            RESPONSE_OPCODE,
+                            pending.transaction_id,
+                            pending.attr_type,
+                        )
+                        continue
+                    pending.future.set_result(message)
                     continue
 
                 _LOGGER.debug(
@@ -304,9 +341,9 @@ class BullBleSession:
                 )
         finally:
             error = BullBleError("BLE notification reader stopped")
-            for future in self._pending.values():
-                if not future.done():
-                    future.set_exception(error)
+            for pending in self._pending.values():
+                if not pending.future.done():
+                    pending.future.set_exception(error)
 
     async def _wait_command(self, command: int, timeout: float = 12) -> bytes:
         deadline = asyncio.get_running_loop().time() + timeout
@@ -338,11 +375,12 @@ class BullBleSession:
     @staticmethod
     def _business(command: int, message_id: int, payload: bytes) -> BusinessMessage:
         if len(payload) < 7 or payload[0] != 0x41:
-            return BusinessMessage(command, message_id, None, None, payload)
+            return BusinessMessage(command, message_id, None, None, None, payload)
         return BusinessMessage(
             command,
             message_id,
             payload[1],
+            payload[4],
             int.from_bytes(payload[5:7], "little"),
             payload[7:],
         )
@@ -368,7 +406,9 @@ class BullBleSession:
             )
             message_id = self._next_id()
             future = asyncio.get_running_loop().create_future()
-            self._pending[message_id] = future
+            self._pending[message_id] = _PendingRequest(
+                transaction_id, attr_type, future
+            )
             try:
                 await self._write_encrypted(message_id, CMD_REQUEST, inner)
                 return await asyncio.wait_for(asyncio.shield(future), 12)

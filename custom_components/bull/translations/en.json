@@ -5,6 +5,15 @@
             "connectivity": {
                 "name": "Connectivity"
             }
+        },
+        "select": {
+            "charge_mode": {
+                "name": "Charge mode",
+                "state": {
+                    "plug_and_charge": "Plug and charge",
+                    "automatic_start": "Automatic start"
+                }
+            }
         }
     },
     "device_automation": {

@@ -13,7 +13,14 @@ from homeassistant.const import (
 DOMAIN = "bull"
 BULL_API_CLIENTS = "bull_api_clients"
 SERVICE_RELOAD = HA_SERVICE_RELOAD
-SUPPORTED_PLATFORMS = ["switch", "sensor", "cover", "binary_sensor", "button"]
+SUPPORTED_PLATFORMS = [
+    "switch",
+    "sensor",
+    "cover",
+    "binary_sensor",
+    "button",
+    "select",
+]
 
 # MosHome 5.1.13 production CloudAPI credentials.  These are application
 # credentials embedded in the official client, rather than user credentials.
@@ -95,6 +102,11 @@ SENSOR_MAPPING = {
         "unit": UnitOfTime.MINUTES,
         "class": "duration",
     },
+    "DeviceFaultCodeInfo": {
+        "name": "故障信息",
+        "unit": None,
+        "class": None,
+    },
     "EnergyUsed": {
         "name": "充电量",
         "unit": UnitOfEnergy.KILO_WATT_HOUR,
@@ -135,6 +147,11 @@ SENSOR_MAPPING = {
         "value_map": {0: "未插枪", 1: "已插枪"},
     },
     "DeviceRealInfo": {
+        "ChargingTime": {
+            "name": "充电时长",
+            "unit": UnitOfTime.SECONDS,
+            "class": "duration",
+        },
         "ChargeVoltage": {
             "name": "实时电压",
             "unit": UnitOfElectricPotential.VOLT,

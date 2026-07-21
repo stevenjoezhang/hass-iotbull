@@ -4,6 +4,11 @@
       "charger": {
         "default": "mdi:ev-station"
       }
+    },
+    "select": {
+      "charge_mode": {
+        "default": "mdi:ev-station"
+      }
     }
   }
 }

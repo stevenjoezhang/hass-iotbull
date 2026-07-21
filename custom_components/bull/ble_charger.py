@@ -42,6 +42,7 @@ GUN_STATE_NOT_PLUGGED = 0
 CONNECT_READY_TIMEOUT = 90
 RECONNECT_INITIAL_DELAY = 5
 RECONNECT_MAX_DELAY = 300
+HEALTH_CHECK_INTERVAL = 60
 
 ConfirmRandom = Callable[[int, str], Awaitable[str]]
 ConfirmDevice = Callable[[str, int, str, bytes], Awaitable[str]]
@@ -234,11 +235,12 @@ class BullBleCharger:
                     _LOGGER.debug("Failed to disconnect Bull BLE client", exc_info=True)
 
     async def _monitor_connection(self, session: BullBleSession) -> None:
-        """Wait for a physical disconnect or a protocol reader failure."""
+        """Wait for a disconnect, reader failure, or failed health check."""
         disconnected = asyncio.create_task(self._connection_lost.wait())
         stopped = asyncio.create_task(self._stop_event.wait())
         reader = asyncio.create_task(session.async_wait_stopped())
-        tasks = {disconnected, stopped, reader}
+        health_check = asyncio.create_task(self._health_check(session))
+        tasks = {disconnected, stopped, reader, health_check}
         try:
             done, pending = await asyncio.wait(
                 tasks, return_when=asyncio.FIRST_COMPLETED
@@ -258,6 +260,9 @@ class BullBleCharger:
                         "persistent BLE notification reader stopped"
                     ) from error
                 raise BullBleError("persistent BLE notification reader stopped")
+            if health_check in done:
+                await health_check
+                raise BullBleError("persistent BLE health check stopped")
         finally:
             for task in tasks:
                 if not task.done():
@@ -265,6 +270,16 @@ class BullBleCharger:
             for task in tasks:
                 with suppress(asyncio.CancelledError, Exception):
                     await task
+
+    async def _health_check(self, session: BullBleSession) -> None:
+        """Periodically verify that the authenticated GATT session is alive."""
+        while True:
+            await asyncio.sleep(HEALTH_CHECK_INTERVAL)
+            async with self._lock:
+                if session is not self._session:
+                    raise BullBleError("BLE session changed before health check")
+                result = await session.request(ATTR_WORK_STATE)
+                self._apply(ATTR_WORK_STATE, result.value)
 
     async def _run(self) -> None:
         """Own the persistent connection and reconnect with exponential backoff."""
@@ -411,3 +426,44 @@ class BullBleCharger:
                                 self._device.iot_id,
                                 observed,
                             )
+
+    async def async_set_charge_mode(self, mode: int) -> None:
+        """Set and confirm the PID 309 charging mode."""
+        if mode not in (0, 1):
+            raise ValueError(f"unsupported charging mode: {mode}")
+
+        session = await self._connected_session()
+        async with self._lock:
+            if session is not self._session:
+                raise BullBleError("charger BLE session changed before command")
+
+            try:
+                response = await session.request(ATTR_CHARGE_MODE, bytes((mode,)))
+            except BullBleError as error:
+                # The field device can apply a D1 write without returning its
+                # business ACK.  Confirm the result with an explicit read.
+                _LOGGER.info(
+                    "BLE charge-mode command for %s sent; ACK unavailable: %s",
+                    self._device.iot_id,
+                    error,
+                )
+            except (BleakError, OSError, ValueError):
+                self._connection_lost.set()
+                raise
+            else:
+                self._apply(ATTR_CHARGE_MODE, response.value)
+
+            await asyncio.sleep(1)
+            try:
+                result = await session.request(ATTR_CHARGE_MODE)
+            except (BullBleError, BleakError, OSError, ValueError):
+                self._connection_lost.set()
+                raise
+
+            self._apply(ATTR_CHARGE_MODE, result.value)
+            if not result.value or result.value[0] != mode:
+                observed = result.value[0] if result.value else None
+                raise BullBleError(
+                    f"charge mode write was not confirmed: expected={mode}, "
+                    f"observed={observed}"
+                )

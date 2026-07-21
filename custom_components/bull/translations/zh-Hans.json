@@ -5,6 +5,15 @@
             "connectivity": {
                 "name": "连通性"
             }
+        },
+        "select": {
+            "charge_mode": {
+                "name": "充电模式",
+                "state": {
+                    "plug_and_charge": "即插即充",
+                    "automatic_start": "无感启充"
+                }
+            }
         }
     },
     "device_automation": {
