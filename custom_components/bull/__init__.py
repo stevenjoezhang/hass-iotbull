@@ -1,10 +1,11 @@
 """Entry for bull-iot integration."""
 
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.service import async_register_admin_service
 
-from .api import BullApi
+from .api import AuthenticationError, BullApi, CloudApiError, NetworkError
 from .const import (
     DOMAIN,
     BULL_API_CLIENTS,
@@ -16,13 +17,13 @@ from .const import (
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Bull IoT integration component."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][BULL_API_CLIENTS] = {}
+    hass.data[DOMAIN].setdefault(BULL_API_CLIENTS, {})
 
     # Support for reloading in Developer Tools
-    async def _handle_reload_config(service):
-        for bull_api in hass.data[DOMAIN][BULL_API_CLIENTS].values():
-            await bull_api.async_destroy()
-            await bull_api.setup()
+    async def _handle_reload_config(_service: ServiceCall) -> None:
+        entry_ids = list(hass.data[DOMAIN][BULL_API_CLIENTS])
+        for entry_id in entry_ids:
+            await hass.config_entries.async_reload(entry_id)
 
     async_register_admin_service(
         hass,
@@ -37,12 +38,24 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Bull IoT integration from a config entry."""
 
-    bull_api = BullApi(hass, entry.data)
+    bull_api = BullApi(hass, entry.data, entry=entry)
 
-    await bull_api.setup()
+    try:
+        await bull_api.setup()
+    except AuthenticationError as err:
+        await bull_api.async_destroy()
+        raise ConfigEntryAuthFailed(str(err)) from err
+    except (CloudApiError, NetworkError) as err:
+        await bull_api.async_destroy()
+        raise ConfigEntryNotReady(str(err)) from err
     hass.data[DOMAIN][BULL_API_CLIENTS][entry.entry_id] = bull_api
 
-    await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
+    except Exception:
+        hass.data[DOMAIN][BULL_API_CLIENTS].pop(entry.entry_id, None)
+        await bull_api.async_destroy()
+        raise
     return True
 
 

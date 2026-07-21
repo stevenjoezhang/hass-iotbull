@@ -21,9 +21,14 @@
         "error": {
             "connection_failed": "Network unreachable",
             "invalid_auth": "Incorrect username or password",
+            "no_family_selected": "Select at least one home",
             "wrong_user": "User not found",
             "wrong_pwd": "Wrong password",
             "login_error": "Log in failed"
+        },
+        "abort": {
+            "reauth_successful": "Reauthentication was successful",
+            "wrong_account": "The credentials belong to a different Bull IoT account"
         },
         "step": {
             "user": {
@@ -33,6 +38,22 @@
                 },
                 "description": "",
                 "title": "Log in Bull IoT Account"
+            },
+            "select_family": {
+                "data": {
+                    "families": "Homes",
+                    "family_with_devices": "{family_name} ({device_count} devices)"
+                },
+                "description": "Select the homes whose devices should be added.",
+                "title": "Add homes"
+            },
+            "reauth_confirm": {
+                "data": {
+                    "username": "Phone number",
+                    "password": "Password"
+                },
+                "description": "Bull IoT rejected the stored credentials. Log in again to continue.",
+                "title": "Reauthenticate Bull IoT"
             }
         }
     }

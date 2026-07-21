@@ -21,9 +21,14 @@
         "error": {
             "connection_failed": "通讯异常",
             "invalid_auth": "用户名或密码不正确",
+            "no_family_selected": "请至少选择一个家庭",
             "wrong_user": "用户不存在",
             "wrong_pwd": "密码错误",
             "login_error": "登录失败"
+        },
+        "abort": {
+            "reauth_successful": "重新认证成功",
+            "wrong_account": "输入的凭据属于另一个公牛智家账号"
         },
         "step": {
             "user": {
@@ -41,6 +46,14 @@
                 },
                 "description": "你可以在下面的输入框中勾选家庭，所选家庭中的设备将被接入。",
                 "title": "添加家庭"
+            },
+            "reauth_confirm": {
+                "data": {
+                    "username": "手机号",
+                    "password": "密码"
+                },
+                "description": "公牛智家拒绝了已保存的凭据，请重新登录以继续使用。",
+                "title": "重新认证公牛智家"
             }
         }
     }

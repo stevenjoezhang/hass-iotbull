@@ -7,13 +7,14 @@ import hmac
 import base64
 from hashlib import md5, sha256
 from urllib.parse import parse_qsl, urlencode, urljoin
-from functools import partial
+from functools import wraps
 import json
 import logging
 import os
 
 from aiohttp import ClientError, ClientTimeout, ClientSession
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import paho.mqtt.client as mqtt
 
@@ -42,28 +43,60 @@ class LoginRequiredError(Exception):
     """Exception raised for login required."""
 
 
-class NetworkError(Exception):
+class NetworkError(HomeAssistantError):
     """Exception raised for network connection error."""
 
 
-def retry(func):
-    """Retry decorator."""
+class AuthenticationError(HomeAssistantError):
+    """Exception raised when stored account credentials are rejected."""
 
+    def __init__(self, error_key: str) -> None:
+        super().__init__(error_key)
+        self.error_key = error_key
+
+
+class CloudApiError(HomeAssistantError):
+    """Exception raised when MosHome rejects an otherwise valid request."""
+
+    def __init__(self, operation: str, response: dict) -> None:
+        self.operation = operation
+        self.code = response.get("code")
+        self.message = response.get("message") or "unknown cloud error"
+        super().__init__(
+            f"{operation} rejected by MosHome: code={self.code}, "
+            f"message={self.message!r}"
+        )
+
+
+def retry(func):
+    """Retry once after token recovery or a transient network failure."""
+
+    @wraps(func)
     async def wrapper(self, *args, **kwargs):
-        try:
-            res = await func(self, *args, **kwargs)
-            return res
-        except InvalidTokenError as _e:
-            await self.async_refresh_access_token()
-            res = await func(self, *args, **kwargs)
-            return res
-        except LoginRequiredError as _e:
-            await self.async_login(self.username, self.password)
-            res = await func(self, *args, **kwargs)
-            return res
-        except NetworkError as _e:
-            res = await func(self, *args, **kwargs)
-            return res
+        stale_access_token = self.access_token
+        for attempt in range(2):
+            try:
+                return await func(self, *args, **kwargs)
+            except InvalidTokenError as err:
+                if attempt:
+                    self._start_reauth()
+                    raise AuthenticationError("invalid_auth") from err
+                await self.async_refresh_access_token(stale_access_token)
+            except LoginRequiredError as err:
+                if attempt:
+                    self._start_reauth()
+                    raise AuthenticationError("invalid_auth") from err
+                await self.async_login(
+                    self.username,
+                    self.password,
+                    stale_access_token=stale_access_token,
+                )
+            except NetworkError:
+                if attempt:
+                    raise
+                await asyncio.sleep(0.5)
+
+        raise RuntimeError("unreachable")
 
     return wrapper
 
@@ -228,8 +261,9 @@ class BullCover(BullDevice):
 class BullApi:
     """A class to represent the Bull IoT API."""
 
-    def __init__(self, hass=None, data: dict = {}) -> None:
+    def __init__(self, hass=None, data: dict | None = None, entry=None) -> None:
         self._hass = hass
+        self._entry = entry
         if data:
             self.deserialize(data)
         else:
@@ -242,6 +276,12 @@ class BullApi:
         self.device_list = {}
         self.families = []
         self.client = None
+        self._destroyed = False
+        self._reauth_started = False
+        self._mqtt_auth_recovery_pending = False
+        self._token_lock = asyncio.Lock()
+        self._mqtt_lock = asyncio.Lock()
+        self._owns_session = not self._hass
         if self._hass:
             self.session = async_create_clientsession(self._hass)
         else:
@@ -250,6 +290,7 @@ class BullApi:
 
     async def setup(self) -> None:
         """Set up the Bull IoT API."""
+        self._destroyed = False
         await self.async_login(self.username, self.password)
         await self.async_get_all_devices_list_mos()
         await self.async_setup_ble_chargers()
@@ -258,7 +299,8 @@ class BullApi:
 
     async def async_destroy(self) -> None:
         """Destroy the Bull IoT API."""
-        self.stop_mqtt()
+        self._destroyed = True
+        await self.async_stop_mqtt()
         chargers = []
         for device in self.device_list.values():
             charger = device.ble_charger
@@ -267,7 +309,8 @@ class BullApi:
                 chargers.append(charger)
         if chargers:
             await asyncio.gather(*(charger.async_stop() for charger in chargers))
-        # FIXME: old devices are not removed during reload
+        if self._owns_session and not self.session.closed:
+            await self.session.close()
         _LOGGER.info("BullApi stopped")
 
     def serialize(self):
@@ -282,14 +325,24 @@ class BullApi:
         """Deserialize the Bull IoT API."""
         self.username = data.get("username")
         self.password = data.get("password")
-        self.selected_families = data.get("selected_families")
+        self.selected_families = data.get("selected_families") or []
 
     def select_family(self, selected_families):
         """Select the families to load devices."""
         self.selected_families = selected_families
 
-    async def async_login(self, username: str, password: str) -> None:
-        """Login through the current MosHome v2 password endpoint."""
+    @staticmethod
+    def _require_success(response: dict, operation: str) -> dict:
+        """Return a successful response or raise a useful cloud exception."""
+        if isinstance(response, dict) and (
+            response.get("success") is True
+            or ("success" not in response and response.get("code") == 200)
+        ):
+            return response
+        raise CloudApiError(operation, response if isinstance(response, dict) else {})
+
+    async def _async_login(self, username: str, password: str) -> None:
+        """Perform one login without acquiring the token recovery lock."""
         form_params = {
             "username": self.encrypt_sensitive_field(username),
             # The React Native layer derives this before calling the Android
@@ -298,31 +351,56 @@ class BullApi:
                 self.encrypt_sha256(password) + self.encrypt_sha256("GONGNIU")
             ),
         }
-        res = await self.async_make_request(
-            "POST",
-            "/mos/uic/v2/auth/form",
-            "application/x-www-form-urlencoded; charset=utf-8",
-            {"Login_parameter": "APP_PWD"},
-            urlencode(form_params),
-            form_params=form_params,
-        )
+        try:
+            res = await self.async_make_request(
+                "POST",
+                "/mos/uic/v2/auth/form",
+                "application/x-www-form-urlencoded; charset=utf-8",
+                {"Login_parameter": "APP_PWD"},
+                urlencode(form_params),
+                form_params=form_params,
+            )
+        except (InvalidTokenError, LoginRequiredError) as err:
+            raise AuthenticationError("invalid_auth") from err
 
         if not res["success"]:
             # MosHome v2 intentionally returns one code for either credential,
             # so do not imply which field was wrong.
             if res["code"] == 901006:
-                raise Exception("invalid_auth")
+                raise AuthenticationError("invalid_auth")
             if res["code"] == 901001:
-                raise Exception("wrong_user")
+                raise AuthenticationError("wrong_user")
             if res["code"] == 901015:
-                raise Exception("wrong_pwd")
-            raise Exception("login_error")
+                raise AuthenticationError("wrong_pwd")
+            raise CloudApiError("login", res)
 
         self.username = username
         self.password = password
         self.access_token = res["result"]["access_token"]
         self.refresh_token = res["result"]["refresh_token"]
         self.openid = str(res["result"]["openid"])
+
+    async def async_login(
+        self,
+        username: str,
+        password: str,
+        *,
+        stale_access_token: str | None = None,
+    ) -> None:
+        """Log in once, coalescing concurrent recovery attempts."""
+        async with self._token_lock:
+            if (
+                stale_access_token is not None
+                and self.access_token != stale_access_token
+            ):
+                return
+            try:
+                await self._async_login(username, password)
+            except AuthenticationError:
+                if stale_access_token is not None:
+                    self._start_reauth()
+                raise
+            await self.async_restart_mqtt()
 
     @staticmethod
     def encrypt_sha256(data):
@@ -350,26 +428,51 @@ class BullApi:
         encryptor = cipher.encryptor()
         return (iv + encryptor.update(padded) + encryptor.finalize()).hex().upper()
 
-    @retry
-    async def async_refresh_access_token(self) -> None:
-        """Obtain a valid access token."""
-        payload = json.dumps(
-            {
-                "refresh_token": self.refresh_token,
-                "grant_type": "refresh_token",
-            },
-            separators=(",", ":"),
-        )
-        res = await self.async_make_request(
-            "POST",
-            "/mos/uic/v1/auth/token",
-            "application/json; charset=utf-8",
-            {},
-            payload,
-        )
+    async def async_refresh_access_token(
+        self, stale_access_token: str | None = None
+    ) -> None:
+        """Refresh once and rebuild MQTT so all transports use the new token."""
+        async with self._token_lock:
+            if (
+                stale_access_token is not None
+                and self.access_token != stale_access_token
+            ):
+                return
 
-        self.access_token = res["result"]["access_token"]
-        self.refresh_token = res["result"]["refresh_token"]
+            payload = json.dumps(
+                {
+                    "refresh_token": self.refresh_token,
+                    "grant_type": "refresh_token",
+                },
+                separators=(",", ":"),
+            )
+            try:
+                res = await self.async_make_request(
+                    "POST",
+                    "/mos/uic/v1/auth/token",
+                    "application/json; charset=utf-8",
+                    {},
+                    payload,
+                )
+            except (InvalidTokenError, LoginRequiredError):
+                try:
+                    await self._async_login(self.username, self.password)
+                except AuthenticationError:
+                    self._start_reauth()
+                    raise
+            else:
+                self._require_success(res, "refresh access token")
+                self.access_token = res["result"]["access_token"]
+                self.refresh_token = res["result"]["refresh_token"]
+
+            await self.async_restart_mqtt()
+
+    def _start_reauth(self) -> None:
+        """Ask Home Assistant for new credentials once per API lifetime."""
+        if self._entry is None or self._hass is None or self._reauth_started:
+            return
+        self._reauth_started = True
+        self._entry.async_start_reauth(self._hass)
 
     @retry
     async def async_get_families(self) -> None:
@@ -381,18 +484,20 @@ class BullApi:
             {"Authorization": f"Bearer {self.access_token}"},
             "",
         )
+        self._require_success(res, "get families")
         self.families = res["result"]
 
     @retry
     async def async_switch_family(self, family_id: int) -> None:
         """Switch the family associated to a user."""
-        await self.async_make_request(
+        res = await self.async_make_request(
             "POST",
             f"/v1/families/{family_id}/switch",
             "application/json",
             {"Authorization": f"Bearer {self.access_token}"},
             "{}",
         )
+        self._require_success(res, f"switch family {family_id}")
 
     @retry
     async def async_get_devices_list(self) -> None:
@@ -407,6 +512,7 @@ class BullApi:
             {"Authorization": f"Bearer {self.access_token}"},
             "",
         )
+        self._require_success(res, "get devices")
         await self.async_parse_devices(res)
 
     async def async_get_all_devices_list(self) -> None:
@@ -432,6 +538,7 @@ class BullApi:
             {"Authorization": f"Bearer {self.access_token}"},
             "",
         )
+        self._require_success(res, f"get device info {iot_id}")
         return res["result"]
 
     @retry
@@ -627,6 +734,7 @@ class BullApi:
             {"Authorization": f"Bearer {self.access_token}"},
             "",
         )
+        self._require_success(res, "get rooms and devices")
         await self.async_parse_devices_mos(res)
 
     async def async_get_all_devices_list_mos(self) -> None:
@@ -671,89 +779,239 @@ class BullApi:
                 timeout=self._request_timeout,
             ) as response:
                 await response.read()
-        except ClientError as err:
+        except (ClientError, TimeoutError) as err:
             _LOGGER.debug("Telemetry request failed: %s", err)
 
-    def init_mqtt(self) -> None:
-        """Initialize the MQTT client."""
-        clientId = "IOS@2.9.1@" + self.openid
+    @staticmethod
+    def _mqtt_reason_value(reason_code) -> int | None:
+        """Return an integer for Paho v2 reason-code objects."""
+        value = getattr(reason_code, "value", reason_code)
+        return value if isinstance(value, int) else None
 
-        def on_connect(client, userdata, flags, rc: int):
-            _LOGGER.info("Connected with result code: %d", rc)
-            if rc != mqtt.MQTT_ERR_SUCCESS:
-                return
+    def _mqtt_on_connect(
+        self, client, userdata, flags, reason_code, properties=None
+    ) -> None:
+        """Bind the account after every successful MQTT connection."""
+        _LOGGER.info("MQTT connected with result code: %s", reason_code)
+        reason_value = self._mqtt_reason_value(reason_code)
+        if reason_value != mqtt.MQTT_ERR_SUCCESS:
+            if reason_value in (4, 5, 134, 135):
+                self._schedule_mqtt_token_refresh()
+            return
 
-            subscribe_rc, _ = client.subscribe(
-                "/sys/app/down/account/bind_reply", qos=0
-            )
-            if subscribe_rc != mqtt.MQTT_ERR_SUCCESS:
-                _LOGGER.warning(
-                    "MQTT bind-reply subscription failed: rc=%d", subscribe_rc
-                )
-            payload = {
-                "id": "msg_id_bind_85",
-                "params": {"token": self.access_token},
-                "request": {"clientId": clientId, "userId": self.openid},
-                "version": "1.0",
-            }
-            client.publish("/sys/app/up/account/bind", json.dumps(payload))
+        subscribe_rc, _ = client.subscribe("/sys/app/down/account/bind_reply", qos=0)
+        if subscribe_rc != mqtt.MQTT_ERR_SUCCESS:
+            _LOGGER.warning("MQTT bind-reply subscription failed: rc=%d", subscribe_rc)
 
-        def on_message(cb, client, userdata, msg):
-            _LOGGER.debug("MQTT message: %s", msg.payload)
+        client_id = "IOS@2.9.1@" + self.openid
+        payload = {
+            "id": "msg_id_bind_85",
+            "params": {"token": self.access_token},
+            "request": {"clientId": client_id, "userId": self.openid},
+            "version": "1.0",
+        }
+        publish_info = client.publish("/sys/app/up/account/bind", json.dumps(payload))
+        if publish_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            _LOGGER.warning("MQTT account bind publish failed: rc=%d", publish_info.rc)
+
+    def _mqtt_on_disconnect(self, client, userdata, *callback_args) -> None:
+        """Report an unexpected disconnect; Paho handles reconnect backoff."""
+        # Paho Callback API v1 supplies either (rc) or (reason_code,
+        # properties); v2 supplies (disconnect_flags, reason_code,
+        # properties). Keep the handler compatible with either installed
+        # version so the integration does not constrain Home Assistant's Paho.
+        if len(callback_args) >= 3:
+            reason_code = callback_args[1]
+        elif callback_args:
+            reason_code = callback_args[0]
+        else:
+            reason_code = None
+        if client is self.client and not self._destroyed:
+            _LOGGER.warning("MQTT disconnected: %s; reconnecting", reason_code)
+        else:
+            _LOGGER.debug("MQTT client stopped: %s", reason_code)
+
+    def _mqtt_on_connect_fail(self, client, userdata) -> None:
+        """Report asynchronous connection failures without stopping retries."""
+        if client is self.client and not self._destroyed:
+            _LOGGER.warning("MQTT connection failed; reconnecting with backoff")
+
+    def _mqtt_on_message(self, client, userdata, msg) -> None:
+        """Validate and dispatch one MQTT message without leaking exceptions."""
+        try:
             db = json.loads(msg.payload)
+            if not isinstance(db, dict):
+                raise ValueError("top-level JSON value is not an object")
+
             if msg.topic.endswith("/account/bind_reply"):
-                _LOGGER.info(
+                code = db.get("code")
+                try:
+                    code_value = int(code) if code is not None else None
+                except (TypeError, ValueError):
+                    code_value = None
+                log = (
+                    _LOGGER.info
+                    if code is None or code_value in (0, 200)
+                    else _LOGGER.warning
+                )
+                log(
                     "MQTT account bind reply: code=%s message=%s",
-                    db.get("code"),
+                    code,
                     db.get("message"),
                 )
-            elif db.get("method") == "thing.properties":
-                iot_id = db["params"]["iotId"]
-                items = db["params"]["items"]
+                if code_value in (9008, 901006) or db.get("error") == "invalid_token":
+                    self._schedule_mqtt_token_refresh()
+                return
+
+            params = db.get("params")
+            if not isinstance(params, dict):
+                raise ValueError("params is missing or is not an object")
+            iot_id = params.get("iotId")
+            if not isinstance(iot_id, str) or not iot_id:
+                raise ValueError("params.iotId is missing")
+
+            if db.get("method") == "thing.properties":
+                items = params.get("items")
+                if not isinstance(items, dict):
+                    raise ValueError("params.items is missing or is not an object")
                 for identifier, info in items.items():
+                    if not isinstance(identifier, str) or not isinstance(info, dict):
+                        _LOGGER.warning(
+                            "Ignoring malformed MQTT property for device %s", iot_id
+                        )
+                        continue
+                    if "value" not in info:
+                        _LOGGER.warning(
+                            "Ignoring MQTT property without a value for device %s",
+                            iot_id,
+                        )
+                        continue
                     for (
                         flattened_key,
                         flattened_value,
                     ) in self._flatten_identifier_values(
                         identifier, info["value"]
                     ).items():
-                        cb(iot_id, flattened_key, flattened_value)
-            elif db.get("method") == "thing.status":
-                iot_id = db["params"]["iotId"]
-                info = db["params"]["status"]
-                status_time = info.get("time")
-                device = self.device_list.get(iot_id)
-                if (
-                    device
-                    and status_time is not None
-                    and device._last_status_time is not None
-                    and status_time < device._last_status_time
-                ):
-                    _LOGGER.debug(
-                        "Ignore stale MQTT status: iot_id=%s status=%s time=%s last_time=%s",
-                        iot_id,
-                        info["value"],
-                        status_time,
-                        device._last_status_time,
-                    )
-                    return
-                if device and status_time is not None:
-                    device._last_status_time = status_time
-                cb(iot_id, "status", info["value"])
+                        self.on_message(iot_id, flattened_key, flattened_value)
+                return
 
-        client = mqtt.Client(client_id=clientId)
-        client.on_connect = on_connect
+            if db.get("method") != "thing.status":
+                return
+
+            info = params.get("status")
+            if not isinstance(info, dict) or "value" not in info:
+                raise ValueError("params.status is missing or invalid")
+            status_time = info.get("time")
+            device = self.device_list.get(iot_id)
+            if (
+                device
+                and isinstance(status_time, (int, float))
+                and isinstance(device._last_status_time, (int, float))
+                and status_time < device._last_status_time
+            ):
+                _LOGGER.debug(
+                    "Ignore stale MQTT status: iot_id=%s status=%s "
+                    "time=%s last_time=%s",
+                    iot_id,
+                    info["value"],
+                    status_time,
+                    device._last_status_time,
+                )
+                return
+            if device and isinstance(status_time, (int, float)):
+                device._last_status_time = status_time
+            self.on_message(iot_id, "status", info["value"])
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            _LOGGER.warning("Ignoring malformed MQTT message on topic %s", msg.topic)
+        except Exception:
+            _LOGGER.exception("Unexpected error handling MQTT message on %s", msg.topic)
+
+    def _schedule_mqtt_token_refresh(self) -> None:
+        """Move token recovery from Paho's thread onto HA's event loop."""
+        if self._hass is None or self._destroyed:
+            return
+        stale_access_token = self.access_token
+
+        def create_task() -> None:
+            if self._destroyed or self._mqtt_auth_recovery_pending:
+                return
+            self._mqtt_auth_recovery_pending = True
+            self._hass.async_create_task(
+                self._async_recover_mqtt_auth(stale_access_token)
+            )
+
+        self._hass.loop.call_soon_threadsafe(create_task)
+
+    async def _async_recover_mqtt_auth(self, stale_access_token: str | None) -> None:
+        """Refresh credentials after an MQTT authentication rejection."""
+        try:
+            await self.async_refresh_access_token(stale_access_token)
+        except AuthenticationError:
+            _LOGGER.error("MQTT authentication requires account reauthentication")
+        except (CloudApiError, NetworkError):
+            _LOGGER.warning("Could not refresh MQTT credentials", exc_info=True)
+        except Exception:
+            _LOGGER.exception("Unexpected error refreshing MQTT credentials")
+        finally:
+            self._mqtt_auth_recovery_pending = False
+
+    def init_mqtt(self) -> None:
+        """Initialize a Paho client with the current access token."""
+        if self._destroyed:
+            return
+        client_id = "IOS@2.9.1@" + self.openid
+        if hasattr(mqtt, "CallbackAPIVersion"):
+            client = mqtt.Client(
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+                client_id=client_id,
+            )
+        else:
+            client = mqtt.Client(client_id=client_id)
+        client.suppress_exceptions = True
+        client.on_connect = self._mqtt_on_connect
+        client.on_disconnect = self._mqtt_on_disconnect
+        client.on_connect_fail = self._mqtt_on_connect_fail
+        client.on_message = self._mqtt_on_message
         client.reconnect_delay_set(min_delay=15, max_delay=120)
         client.username_pw_set(self.openid, self.access_token)
-        client.on_message = partial(on_message, self.on_message)
-        client.connect_async("emqx-prod.iotbull.com", port=1883)
-        client.loop_start()
         self.client = client
+        connect_rc = client.connect_async("emqx-prod.iotbull.com", port=1883)
+        if connect_rc != mqtt.MQTT_ERR_SUCCESS:
+            _LOGGER.warning("Could not start MQTT connection: rc=%d", connect_rc)
+        client.loop_start()
 
-    def stop_mqtt(self) -> None:
-        """Stop the MQTT client."""
-        if self.client:
-            self.client.loop_stop()
+    @staticmethod
+    def _stop_mqtt_client(client) -> None:
+        """Stop one Paho network thread; intended for an executor."""
+        disconnect_rc = client.disconnect()
+        if disconnect_rc not in (mqtt.MQTT_ERR_SUCCESS, mqtt.MQTT_ERR_NO_CONN):
+            _LOGGER.debug("MQTT disconnect returned rc=%d", disconnect_rc)
+        client.loop_stop()
+
+    async def _async_stop_mqtt_locked(self) -> None:
+        """Stop the current MQTT client while the caller holds the MQTT lock."""
+        client = self.client
+        self.client = None
+        if client is None:
+            return
+        if self._hass:
+            await self._hass.async_add_executor_job(self._stop_mqtt_client, client)
+        else:
+            await asyncio.to_thread(self._stop_mqtt_client, client)
+
+    async def async_stop_mqtt(self) -> None:
+        """Disconnect MQTT and join its network thread without blocking HA."""
+        async with self._mqtt_lock:
+            await self._async_stop_mqtt_locked()
+
+    async def async_restart_mqtt(self) -> None:
+        """Rebuild an active client so credentials and bind token stay in sync."""
+        async with self._mqtt_lock:
+            if self.client is None or self._destroyed:
+                return
+            await self._async_stop_mqtt_locked()
+            if not self._destroyed:
+                self.init_mqtt()
 
     def on_message(self, iot_id: str, identifier: str, value) -> None:
         """Handle the MQTT message."""
@@ -764,18 +1022,19 @@ class BullApi:
     @retry
     async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
         """Set the device property."""
-        await self.async_make_request(
+        response = await self.async_make_request(
             "PUT",
-            f"/v1/dc/setDeviceProperty/{iot_id}",
+            f"/mos/v1/dc/setDeviceProperty/{iot_id}",
             "application/json",
             {"Authorization": f"Bearer {self.access_token}"},
             json.dumps([{"value": value, "identifier": identifier}]),
         )
+        self._require_success(response, f"set property {identifier}")
 
     @retry
     async def invoke_thing_service(self, iot_id: str, identifier: str) -> None:
         """Invoke thing service by identifier."""
-        await self.async_make_request(
+        response = await self.async_make_request(
             "PUT",
             f"/mos/iot/v1/devices/{iot_id}/invokeThingService",
             "application/json",
@@ -784,6 +1043,7 @@ class BullApi:
             },
             json.dumps({"identifier": identifier}),
         )
+        self._require_success(response, f"invoke service {identifier}")
 
     @staticmethod
     def _canonical_resource(path: str, form_params: dict[str, str] | None) -> str:
@@ -884,15 +1144,27 @@ class BullApi:
                 timeout=self._request_timeout,
             ) as response:
                 text = await response.text()
-
-                _LOGGER.debug("Request: %s %s %s", path, response.status, text)
-
                 try:
                     res = json.loads(text)
                 except json.JSONDecodeError as err:
-                    _LOGGER.error("Invalid JSON response for %s: %s", path, text)
+                    _LOGGER.error(
+                        "Invalid JSON response for %s: HTTP %s",
+                        path,
+                        response.status,
+                    )
                     raise NetworkError("invalid_response") from err
-        except ClientError as err:
+                if not isinstance(res, dict):
+                    raise NetworkError("invalid_response")
+                _LOGGER.debug(
+                    "Request completed: path=%s status=%s success=%s code=%s "
+                    "message=%r",
+                    path,
+                    response.status,
+                    res.get("success"),
+                    res.get("code"),
+                    res.get("message"),
+                )
+        except (ClientError, TimeoutError) as err:
             _LOGGER.error("Request failed: %s %s", path, err)
             raise NetworkError("connection_failed") from err
 
