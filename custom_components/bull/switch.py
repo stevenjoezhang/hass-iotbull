@@ -17,7 +17,7 @@ class BullSwitchEntity(SwitchEntity):
         self._device = device
         self._identifier = identifier
         self._attr_should_poll = False
-        device._entities[identifier] = self
+        device.register_entity(self, identifier)
 
     @property
     def device_info(self):
@@ -69,7 +69,7 @@ class BullChargerEntity(BullSwitchEntity):
 
     def __init__(self, device: BullSwitch, identifier: str) -> None:
         super().__init__(device, identifier)
-        device._entities["ChargeSwitch"] = self
+        device.register_entity(self, "ChargeSwitch")
 
     @property
     def name(self) -> str:

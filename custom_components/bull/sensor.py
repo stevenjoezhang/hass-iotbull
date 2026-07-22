@@ -52,7 +52,7 @@ class BullSensorEntity(SensorEntity):
         self._attr_native_unit_of_measurement = self._meta["unit"]
         if self._attr_device_class == "energy":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        device._entities[value_key] = self
+        device.register_entity(self, value_key)
 
     @property
     def device_info(self):

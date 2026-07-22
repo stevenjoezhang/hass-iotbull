@@ -29,6 +29,7 @@ from .const import (
     SWITCH_PRODUCT_ID,
     COVER_PRODUCT_ID,
     CHARGER_PRODUCT_ID,
+    LIGHT_PRODUCT_ID,
 )
 from .ble import BleIdentity, BullBleError
 
@@ -124,6 +125,7 @@ class BullDevice:
         self.raw_device_info = {}
         self._last_status_time = None
         self._connectivity_entity = None
+        self._entities = {}
         self.ble_charger = None
         self.ble_available = False
 
@@ -146,13 +148,36 @@ class BullDevice:
     async def set_dp(self, identifier: str, prop: int):
         await self._cloud.set_property(self.iot_id, identifier, prop)
 
+    async def set_dps(self, properties: dict[str, int]) -> None:
+        """Set multiple device properties in one cloud request."""
+        await self._cloud.set_properties(self.iot_id, properties)
+
     async def invoke_thing_service(self, identifier: str):
         await self._cloud.invoke_thing_service(self.iot_id, identifier)
 
+    def register_entity(self, entity, *identifiers: str) -> None:
+        """Register an entity for every property that can change its state."""
+        for identifier in identifiers:
+            entities = self._entities.setdefault(identifier, [])
+            if entity not in entities:
+                entities.append(entity)
+
+    def _registered_entities(self):
+        """Yield registered entities once even if they watch several properties."""
+        seen = set()
+        for entities in self._entities.values():
+            for entity in entities:
+                if id(entity) in seen:
+                    continue
+                seen.add(id(entity))
+                yield entity
+
     def _schedule_availability_update(self) -> None:
         """Schedule state updates for entities whose availability may change."""
-        if self._connectivity_entity:
-            self._connectivity_entity.schedule_update_ha_state()
+        entities = [*self._registered_entities(), self._connectivity_entity]
+        for entity in entities:
+            if entity is not None:
+                entity.schedule_update_ha_state()
 
     def set_ble_available(self, available: bool) -> None:
         """Publish a BLE availability change to every entity for this device."""
@@ -196,8 +221,12 @@ class BullDevice:
     def update_dp(self, identifier: str, prop):
         self.identifier_values[identifier] = prop
         self._sync_raw_info_value(identifier, prop)
-        if identifier == "status" and self._connectivity_entity:
-            self._connectivity_entity.schedule_update_ha_state()
+        if identifier == "status":
+            self._schedule_availability_update()
+        else:
+            for entity in self._entities.get(identifier, []):
+                entity.schedule_update_ha_state()
+        _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
 
 
 class BullSwitch(BullDevice):
@@ -208,14 +237,12 @@ class BullSwitch(BullDevice):
         # For switches, the identifiers may contain PowerSwitch, PowerSwitch_1, PowerSwitch_2, PowerSwitch_3
         # Key is identifier, value is name (e.g. "客厅吊灯")
         self.identifier_names = {}
-        # Key is identifier, value is entity
-        self._entities = {}
         self._button_entities = []
 
     def _schedule_availability_update(self) -> None:
         """Schedule state updates for all switch, sensor, and button entities."""
         entities = [
-            *self._entities.values(),
+            *self._registered_entities(),
             *self._button_entities,
             self._connectivity_entity,
         ]
@@ -227,16 +254,10 @@ class BullSwitch(BullDevice):
             entity.schedule_update_ha_state()
 
     def update_dp(self, identifier: str, prop):
-        self.identifier_values[identifier] = prop
-        self._sync_raw_info_value(identifier, prop)
-        entity = self._entities.get(identifier)
-        if entity:
-            entity.schedule_update_ha_state()
-        for button_entity in self._button_entities:
-            button_entity.schedule_update_ha_state()
-        if identifier == "status" and self._connectivity_entity:
-            self._connectivity_entity.schedule_update_ha_state()
-        _LOGGER.debug("Update device property: %s %s %s", self.iot_id, identifier, prop)
+        super().update_dp(identifier, prop)
+        if identifier != "status":
+            for button_entity in self._button_entities:
+                button_entity.schedule_update_ha_state()
 
 
 class BullCover(BullDevice):
@@ -682,6 +703,8 @@ class BullApi:
                 )
         elif global_product_id in COVER_PRODUCT_ID:
             device.name = info.get("nickName", device.nick_name)
+        elif global_product_id in LIGHT_PRODUCT_ID:
+            pass
         else:
             _LOGGER.info(
                 "Unknown product %s, keep connectivity entity only: %s %s %s",
@@ -1021,17 +1044,37 @@ class BullApi:
         if device:
             device.update_dp(identifier, value)
 
-    @retry
-    async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
-        """Set the device property."""
+    async def _async_set_properties(
+        self, iot_id: str, properties: dict[str, int]
+    ) -> None:
+        """Send one property batch without applying token retry twice."""
+        if not properties:
+            raise ValueError("at least one device property is required")
+
         response = await self.async_make_request(
             "PUT",
             f"/mos/v1/dc/setDeviceProperty/{iot_id}",
             "application/json",
             {"Authorization": f"Bearer {self.access_token}"},
-            json.dumps([{"value": value, "identifier": identifier}]),
+            json.dumps(
+                [
+                    {"value": value, "identifier": identifier}
+                    for identifier, value in properties.items()
+                ]
+            ),
         )
-        self._require_success(response, f"set property {identifier}")
+        identifiers = ", ".join(properties)
+        self._require_success(response, f"set properties {identifiers}")
+
+    @retry
+    async def set_property(self, iot_id: str, identifier: str, value: int) -> None:
+        """Set one device property."""
+        await self._async_set_properties(iot_id, {identifier: value})
+
+    @retry
+    async def set_properties(self, iot_id: str, properties: dict[str, int]) -> None:
+        """Set multiple device properties in one request."""
+        await self._async_set_properties(iot_id, properties)
 
     @retry
     async def invoke_thing_service(self, iot_id: str, identifier: str) -> None:

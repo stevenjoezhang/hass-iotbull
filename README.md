@@ -8,7 +8,7 @@
 
 * 本插件支持将 MosHome（公牛智家）智能设备自动接入 [Home Assistant](https://www.home-assistant.io)
 * 支持 Home Assistant 后台界面集成，无需编写 yaml 配置文件
-* 能够控制开关、插座、窗帘、充电桩等设备
+* 能够控制开关、插座、灯具、窗帘、充电桩等设备
 * 能够自动更新设备的在线状态和开关状态
 * 对于支持电量统计的设备能够显示功率、电压、电流等数据
 
@@ -88,6 +88,18 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | 220 | C200智能二位开关 |
 | 221 | C200智能四位开关 |
 | 279 | 公牛隐形轨道插座 |
+
+### 灯具
+
+| globalProductId | productName |
+| - | - |
+| 79 | S03 Pro智能磁吸格栅灯 |
+| 125 | 公牛明皓智能吸顶灯（大方） |
+| 127 | 公牛明皓智能吸顶灯（小圆） |
+| 171 | D100Pro智能灯带（蓝牙MESH版） |
+| 175 | T200 Pro嵌入式射灯 |
+| 236 | 轻智能 智能灯带控制器 |
+| 237 | 轻智能 T05II Pro射灯 |
 
 ### 充电桩
 

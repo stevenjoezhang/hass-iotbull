@@ -29,7 +29,7 @@ class BullChargerModeEntity(SelectEntity):
 
     def __init__(self, device: BullSwitch) -> None:
         self._device = device
-        device._entities["ChargeMode"] = self
+        device.register_entity(self, "ChargeMode")
 
     @property
     def device_info(self):

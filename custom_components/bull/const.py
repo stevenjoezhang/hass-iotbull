@@ -15,6 +15,7 @@ BULL_API_CLIENTS = "bull_api_clients"
 SERVICE_RELOAD = HA_SERVICE_RELOAD
 SUPPORTED_PLATFORMS = [
     "switch",
+    "light",
     "sensor",
     "cover",
     "binary_sensor",
@@ -61,6 +62,7 @@ SWITCH_PRODUCT_ID = {
 }
 CHARGER_PRODUCT_ID = {74, 75, 141, 196, 199, 258, 274, 275, 309}
 COVER_PRODUCT_ID = {31, 56, 59, 168, 198, 291}
+LIGHT_PRODUCT_ID = {79, 125, 127, 171, 175, 236, 237}
 
 BUTTON_ENTITY_MAPPING = {
     258: [
