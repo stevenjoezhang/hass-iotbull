@@ -132,6 +132,16 @@ async def async_setup_entry(
         "DeviceRealInfo.ChargeSlotTemp",
         "DeviceRealInfo.ChargeGunTemp",
     }
+    cloud_charger_value_keys = {
+        "DeviceState.WorkState",
+        "DeviceState.GunState",
+        "DeviceRealInfo.EnergyUsed",
+        "DeviceRealInfo.Current",
+        "DeviceRealInfo.Voltage",
+        "DeviceRealInfo.ActivePower",
+        "DeviceRealInfo.SlotTemp",
+        "DeviceRealInfo.MBTemp",
+    }
 
     for device in bull_api.device_list.values():
         if device.global_product_id in (
@@ -140,8 +150,10 @@ async def async_setup_entry(
             for entity_identifier, value_key, meta in sensor_specs:
                 if device.ble_charger and value_key == "ChargeMode":
                     continue
-                if value_key in device.identifier_values or (
-                    device.ble_charger and value_key in ble_value_keys
+                if (
+                    value_key in device.identifier_values
+                    or (device.ble_charger and value_key in ble_value_keys)
+                    or (device.cloud_charger and value_key in cloud_charger_value_keys)
                 ):
                     entities.append(
                         BullSensorEntity(device, entity_identifier, value_key, meta)

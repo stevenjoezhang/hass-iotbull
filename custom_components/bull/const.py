@@ -61,7 +61,18 @@ SWITCH_PRODUCT_ID = {
     221,
     279,
 }
-CHARGER_PRODUCT_ID = {74, 75, 141, 196, 199, 258, 274, 275, 309}
+THING_SERVICE_CHARGER_PRODUCT_ID = {193, 195}
+CHARGER_PRODUCT_ID = {
+    74,
+    75,
+    141,
+    196,
+    199,
+    258,
+    274,
+    275,
+    309,
+} | THING_SERVICE_CHARGER_PRODUCT_ID
 COVER_PRODUCT_ID = {31, 56, 59, 168, 198, 291}
 LIGHT_PRODUCT_ID = {79, 125, 127, 171, 175, 236, 237}
 SENSOR_PRODUCT_ID = {61, 63, 66, 68}
@@ -228,12 +239,12 @@ SENSOR_MAPPING = {
             "class": "temperature",
         },
         "SlotTemp": {
-            "name": "插座温度",
+            "name": "接线温度",
             "unit": UnitOfTemperature.CELSIUS,
             "class": "temperature",
         },
         "MBTemp": {
-            "name": "主板温度",
+            "name": "桩内温度",
             "unit": UnitOfTemperature.CELSIUS,
             "class": "temperature",
         },
@@ -258,6 +269,34 @@ SENSOR_MAPPING = {
                 0: "未插枪",
                 1: "已插枪",
             },
+        },
+    },
+    # PID 193/195 use the gnNewChargingPole module. Its WorkState values are
+    # the same as the flat charger state, but are nested under DeviceState.
+    "DeviceState": {
+        "WorkState": {
+            "name": "充电状态",
+            "unit": None,
+            "class": None,
+            "value_map": {
+                0: "待机",
+                1: "启动中",
+                2: "充电中",
+                3: "停止中",
+                4: "已完成",
+                5: "已暂停",
+                6: "故障",
+                7: "维护",
+                8: "待认证",
+                9: "预约中",
+                10: "降流充电中",
+            },
+        },
+        "GunState": {
+            "name": "插枪状态",
+            "unit": None,
+            "class": None,
+            "value_map": {0: "未插枪", 1: "已插枪"},
         },
     },
 }

@@ -11,6 +11,7 @@ from functools import wraps
 import json
 import logging
 import os
+from threading import Lock
 
 from aiohttp import ClientError, ClientTimeout, ClientSession
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -31,8 +32,10 @@ from .const import (
     CHARGER_PRODUCT_ID,
     LIGHT_PRODUCT_ID,
     SENSOR_PRODUCT_ID,
+    THING_SERVICE_CHARGER_PRODUCT_ID,
 )
 from .ble import BleIdentity, BullBleError
+from .cloud_charger import BullCloudServiceCharger
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,7 +130,10 @@ class BullDevice:
         self._last_status_time = None
         self._connectivity_entity = None
         self._entities = {}
+        self._property_waiters = {}
+        self._property_waiters_lock = Lock()
         self.ble_charger = None
+        self.cloud_charger = None
         self.ble_available = False
 
     @property
@@ -219,8 +225,54 @@ class BullDevice:
         if isinstance(parent_value, dict):
             parent_value[child_identifier] = value
 
+    def create_property_waiter(
+        self, identifier: str, expected_values: set
+    ) -> asyncio.Future:
+        """Create a race-safe waiter for an MQTT property transition."""
+        loop = asyncio.get_running_loop()
+        waiter = loop.create_future()
+        expected = frozenset(expected_values)
+        with self._property_waiters_lock:
+            if self.identifier_values.get(identifier) in expected:
+                waiter.set_result(self.identifier_values[identifier])
+            else:
+                self._property_waiters.setdefault(identifier, []).append(
+                    (expected, waiter)
+                )
+        return waiter
+
+    def cancel_property_waiter(self, identifier: str, waiter: asyncio.Future) -> None:
+        """Remove and cancel a property waiter that is no longer needed."""
+        with self._property_waiters_lock:
+            waiters = self._property_waiters.get(identifier, [])
+            remaining = [item for item in waiters if item[1] is not waiter]
+            if remaining:
+                self._property_waiters[identifier] = remaining
+            else:
+                self._property_waiters.pop(identifier, None)
+        if not waiter.done():
+            waiter.cancel()
+
+    @staticmethod
+    def _resolve_property_waiter(waiter: asyncio.Future, value) -> None:
+        """Resolve one waiter on its owning event loop."""
+        if not waiter.done():
+            waiter.set_result(value)
+
     def update_dp(self, identifier: str, prop):
-        self.identifier_values[identifier] = prop
+        with self._property_waiters_lock:
+            self.identifier_values[identifier] = prop
+            waiters = self._property_waiters.get(identifier, [])
+            matched = [item for item in waiters if prop in item[0]]
+            remaining = [item for item in waiters if prop not in item[0]]
+            if remaining:
+                self._property_waiters[identifier] = remaining
+            else:
+                self._property_waiters.pop(identifier, None)
+        for _, waiter in matched:
+            waiter.get_loop().call_soon_threadsafe(
+                self._resolve_property_waiter, waiter, prop
+            )
         self._sync_raw_info_value(identifier, prop)
         if identifier == "status":
             self._schedule_availability_update()
@@ -687,6 +739,8 @@ class BullApi:
             else:
                 device = BullDevice(self, info)
             await self._async_initialize_device(device, info)
+            if global_product_id in THING_SERVICE_CHARGER_PRODUCT_ID:
+                device.cloud_charger = BullCloudServiceCharger(device)
             # Publish only fully initialized objects. If any parsing or cloud
             # request above fails, a retry must build the device from scratch.
             self.device_list[iot_id] = device

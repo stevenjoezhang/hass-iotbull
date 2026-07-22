@@ -70,6 +70,8 @@ class BullChargerEntity(BullSwitchEntity):
     def __init__(self, device: BullSwitch, identifier: str) -> None:
         super().__init__(device, identifier)
         device.register_entity(self, "ChargeSwitch")
+        if device.cloud_charger:
+            device.register_entity(self, "DeviceState.WorkState")
 
     @property
     def name(self) -> str:
@@ -78,14 +80,18 @@ class BullChargerEntity(BullSwitchEntity):
         )
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Check if Bull IoT switch is on."""
+        if self._device.cloud_charger:
+            return self._device.cloud_charger.is_charging
         return bool(self._device.identifier_values.get("ChargeSwitch", False))
 
     async def async_turn_on(self, **kwargs):
         """Turn Bull IoT switch on."""
         if self._device.ble_charger:
             await self._device.ble_charger.async_set_charging(True)
+        elif self._device.cloud_charger:
+            await self._device.cloud_charger.async_set_charging(True)
         else:
             await self._device.set_dp("ChargeSwitch", 1)
 
@@ -93,6 +99,8 @@ class BullChargerEntity(BullSwitchEntity):
         """Turn Bull IoT switch off."""
         if self._device.ble_charger:
             await self._device.ble_charger.async_set_charging(False)
+        elif self._device.cloud_charger:
+            await self._device.cloud_charger.async_set_charging(False)
         else:
             await self._device.set_dp("ChargeSwitch", 0)
 
@@ -110,12 +118,21 @@ async def async_setup_entry(
             for identifier in device.identifier_names:
                 entities.append(BullSwitchEntity(device, identifier))
         elif device.global_product_id in CHARGER_PRODUCT_ID:
-            if "ChargeSwitch" in device.identifier_values or device.ble_charger:
-                identifier = (
-                    "ChargeSwitch"
-                    if "ChargeSwitch" in device.identifier_names
-                    else next(iter(device.identifier_names), "ChargeSwitch")
-                )
+            if (
+                "ChargeSwitch" in device.identifier_values
+                or device.ble_charger
+                or device.cloud_charger
+            ):
+                if device.cloud_charger:
+                    # PID 193/195 have no ChargeSwitch property, but use the
+                    # conceptual identifier for a stable HA entity unique ID.
+                    identifier = "ChargeSwitch"
+                else:
+                    identifier = (
+                        "ChargeSwitch"
+                        if "ChargeSwitch" in device.identifier_names
+                        else next(iter(device.identifier_names), "ChargeSwitch")
+                    )
                 entities.append(BullChargerEntity(device, identifier))
 
     async_add_entities(entities, update_before_add=False)

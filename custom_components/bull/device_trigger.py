@@ -28,10 +28,12 @@ from .const import DOMAIN
 TRIGGER_TYPES = {
     "work_state_idle": {
         "DeviceWorkState.WorkState": "未工作",
+        "DeviceState.WorkState": "待机",
         "WorkState": "待机",
     },
     "work_state_charging": {
         "DeviceWorkState.WorkState": "充电中",
+        "DeviceState.WorkState": "充电中",
         "WorkState": "充电中",
     },
     "work_state_gun_inserted_not_activated": {
@@ -42,10 +44,12 @@ TRIGGER_TYPES = {
     },
     "gun_state_unplugged": {
         "DeviceWorkState.GunState": "未插枪",
+        "DeviceState.GunState": "未插枪",
         "GunState": "未插枪",
     },
     "gun_state_plugged": {
         "DeviceWorkState.GunState": "已插枪",
+        "DeviceState.GunState": "已插枪",
         "GunState": "已插枪",
     },
 }
