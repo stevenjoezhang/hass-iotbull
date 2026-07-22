@@ -4,6 +4,26 @@
         "binary_sensor": {
             "connectivity": {
                 "name": "连通性"
+            },
+            "door": {
+                "name": "门窗"
+            },
+            "gas_status": {
+                "name": "燃气报警"
+            },
+            "motion": {
+                "name": "移动"
+            },
+            "tamper": {
+                "name": "防拆报警"
+            },
+            "water_status": {
+                "name": "漏水"
+            }
+        },
+        "sensor": {
+            "battery": {
+                "name": "电池电量"
             }
         },
         "select": {

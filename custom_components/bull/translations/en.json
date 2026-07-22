@@ -4,6 +4,26 @@
         "binary_sensor": {
             "connectivity": {
                 "name": "Connectivity"
+            },
+            "door": {
+                "name": "Door"
+            },
+            "gas_status": {
+                "name": "Gas alarm"
+            },
+            "motion": {
+                "name": "Motion"
+            },
+            "tamper": {
+                "name": "Tamper"
+            },
+            "water_status": {
+                "name": "Water leak"
+            }
+        },
+        "sensor": {
+            "battery": {
+                "name": "Battery"
             }
         },
         "select": {

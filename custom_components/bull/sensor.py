@@ -12,8 +12,9 @@ from .const import (
     SWITCH_PRODUCT_ID,
     SENSOR_MAPPING,
     CHARGER_PRODUCT_ID,
+    SENSOR_PRODUCT_ID,
 )
-from .api import BullSwitch
+from .api import BullDevice
 
 
 def _is_sensor_meta(value) -> bool:
@@ -37,9 +38,11 @@ def _iter_sensor_specs(mapping: dict):
 class BullSensorEntity(SensorEntity):
     """Representation of a Bull IoT sensor."""
 
+    _attr_should_poll = False
+
     def __init__(
         self,
-        device: BullSwitch,
+        device: BullDevice,
         entity_identifier: str,
         value_key: str,
         meta: dict,
@@ -50,8 +53,13 @@ class BullSensorEntity(SensorEntity):
         self._meta = meta
         self._attr_device_class = self._meta["class"]
         self._attr_native_unit_of_measurement = self._meta["unit"]
+        if translation_key := self._meta.get("translation_key"):
+            self._attr_has_entity_name = True
+            self._attr_translation_key = translation_key
         if self._attr_device_class == "energy":
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif self._attr_device_class == "battery":
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         device.register_entity(self, value_key)
 
     @property
@@ -76,8 +84,11 @@ class BullSensorEntity(SensorEntity):
 
     @property
     def name(self):
+        if "translation_key" in self._meta:
+            return None
+        identifier_names = getattr(self._device, "identifier_names", {})
         prefix = next(
-            iter(self._device.identifier_names.values()),
+            iter(identifier_names.values()),
             self._device.nick_name or self._device.product_name,
         )
         return f"{prefix}{self._meta['name']}"
@@ -123,7 +134,9 @@ async def async_setup_entry(
     }
 
     for device in bull_api.device_list.values():
-        if device.global_product_id in SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID:
+        if device.global_product_id in (
+            SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID | SENSOR_PRODUCT_ID
+        ):
             for entity_identifier, value_key, meta in sensor_specs:
                 if device.ble_charger and value_key == "ChargeMode":
                     continue

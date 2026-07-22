@@ -30,6 +30,7 @@ from .const import (
     COVER_PRODUCT_ID,
     CHARGER_PRODUCT_ID,
     LIGHT_PRODUCT_ID,
+    SENSOR_PRODUCT_ID,
 )
 from .ble import BleIdentity, BullBleError
 
@@ -703,7 +704,7 @@ class BullApi:
                 )
         elif global_product_id in COVER_PRODUCT_ID:
             device.name = info.get("nickName", device.nick_name)
-        elif global_product_id in LIGHT_PRODUCT_ID:
+        elif global_product_id in LIGHT_PRODUCT_ID | SENSOR_PRODUCT_ID:
             pass
         else:
             _LOGGER.info(

@@ -9,7 +9,7 @@
 * 本插件支持将 MosHome（公牛智家）智能设备自动接入 [Home Assistant](https://www.home-assistant.io)
 * 支持 Home Assistant 后台界面集成，无需编写 yaml 配置文件
 * 能够控制开关、插座、灯具、窗帘、充电桩等设备
-* 能够自动更新设备的在线状态和开关状态
+* 能够自动更新设备的在线状态、开关状态和传感器状态
 * 对于支持电量统计的设备能够显示功率、电压、电流等数据
 
 ## 添加设备
@@ -125,5 +125,14 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | 168 | C100全屋智能定制轨窗帘电机 |
 | 198 | 智能梦幻窗帘电机 |
 | 291 | 卷帘管状电机(C200D002) |
+
+### 传感器
+
+| globalProductId | productName |
+| - | - |
+| 61 | 智能燃气泄漏报警器 |
+| 63 | 智能水浸传感器 |
+| 66 | 智能人体移动传感器 |
+| 68 | 智能门窗传感器 |
 
 [hacs]: https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration

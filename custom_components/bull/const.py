@@ -1,6 +1,7 @@
 """Constants for bull-iot integration."""
 
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfPower,
     UnitOfElectricPotential,
     UnitOfElectricCurrent,
@@ -63,6 +64,7 @@ SWITCH_PRODUCT_ID = {
 CHARGER_PRODUCT_ID = {74, 75, 141, 196, 199, 258, 274, 275, 309}
 COVER_PRODUCT_ID = {31, 56, 59, 168, 198, 291}
 LIGHT_PRODUCT_ID = {79, 125, 127, 171, 175, 236, 237}
+SENSOR_PRODUCT_ID = {61, 63, 66, 68}
 
 BUTTON_ENTITY_MAPPING = {
     258: [
@@ -76,6 +78,13 @@ BUTTON_ENTITY_MAPPING = {
 }
 
 SENSOR_MAPPING = {
+    # For product 63, 66, 68
+    "BatteryPercent": {
+        "name": "电池电量",
+        "translation_key": "battery",
+        "unit": PERCENTAGE,
+        "class": "battery",
+    },
     # For product 7, 14, 30, 53, 180
     "RealTimePower": {"name": "功率", "unit": UnitOfPower.WATT, "class": "power"},
     # For product 53, 180
