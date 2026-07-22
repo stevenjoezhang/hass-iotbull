@@ -109,5 +109,9 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 | - | - |
 | 31 | 智能窗帘CW11/C035 |
 | 56 | 智能窗帘GDS015 |
+| 59 | 智能窗帘GDZ026(MESH) |
+| 168 | C100全屋智能定制轨窗帘电机 |
+| 198 | 智能梦幻窗帘电机 |
+| 291 | 卷帘管状电机(C200D002) |
 
 [hacs]: https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration
