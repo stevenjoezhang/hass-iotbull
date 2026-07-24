@@ -6,23 +6,21 @@
 ![](https://forthebadge.com/images/badges/powered-by-electricity.svg)
 ![](https://forthebadge.com/images/badges/makes-people-smile.svg)
 
-* 本插件支持将 MosHome（公牛智家）智能设备自动接入 [Home Assistant](https://www.home-assistant.io)
-* 支持 Home Assistant 后台界面集成，无需编写 yaml 配置文件
+* 本集成（Integration）支持将 MosHome（公牛智家）智能设备自动接入 [Home Assistant](https://www.home-assistant.io)
+* 支持 Home Assistant 后台 Web 界面设置，无需编写 yaml 配置文件
 * 能够控制开关、插座、灯具、窗帘、充电桩等设备
 * 能够自动更新设备的在线状态、开关状态和传感器状态
 * 对于支持电量统计的设备能够显示功率、电压、电流等数据
 
-如需通过 ESP32-C3、4G DTU 和 BLE 接入 7kW 交流充电桩（优享蓝牙款）D3-B32EB，请参阅独立项目 [hass-bull-d3-gateway](https://github.com/stevenjoezhang/hass-bull-d3-gateway)。
-
 ## 添加设备
 
-首先在手机上下载「MosHome（公牛智家）」App，并按照提示将家中的公牛智能设备接入网络。如果您是通过手机验证码登录的 App，还需要为账户设置密码，因为本插件只支持通过用户名和密码登录。
+首先在手机上下载「MosHome（公牛智家）」App，并按照提示将家中的公牛智能设备接入网络。如果您是通过手机验证码登录的 App，还需要为账户设置密码，因为本集成只支持通过用户名和密码登录。
 
-添加设备后，您可以在 App 中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本插件能够自动读取相关信息并显示在 Home Assistant 中。
+添加设备后，您可以在 App 中设置好设备所处的房间（例如「客厅」「卧室」等）和设备名称（例如「吊灯」「灯带」等），本集成能够自动读取相关信息并显示在 Home Assistant 中。
 
-## 安装插件
+## 安装集成
 
-在将所有设备添加完成后，将本插件安装到 Home Assistant。
+在将所有设备添加完成后，将本集成安装到 Home Assistant。
 
 ### 通过 HACS 安装
 
@@ -30,7 +28,7 @@
 
 ### 手动安装
 
-如果不使用 HACS，可以手动安装插件。具体方法是，先克隆这个仓库到部署 Home Assistant 的主机上：
+如果不使用 HACS，可以手动安装集成。具体方法是，先克隆这个仓库到部署 Home Assistant 的主机上：
 
 ```sh
 git clone https://github.com/stevenjoezhang/hass-iotbull
@@ -46,20 +44,22 @@ cp -r hass-iotbull/custom_components/bull ~/hass/custom_components
 
 安装完成后，重启 Home Assistant。待 Home Assistant 启动后，在「设置」菜单中点击「设备与服务」选项，在新界面中选择「添加集成」，搜索「Bull IoT」，按照提示操作即可。
 
-如果在设置时，插件正确识别了设备数量，但部分设备无法添加到 Home Assistant，说明您的设备不在列表中（见本页最下方「支持的设备」章节）。请检查错误日志，欢迎提交 Issue 或 Pull Request。
+如果在设置时，集成正确识别了设备数量，但部分设备无法添加到 Home Assistant，说明您的设备不在列表中（见本页最下方「支持的设备」章节）。请检查错误日志，欢迎提交 Issue 或 Pull Request。
 
 ## 隐私
 
-本插件可能会收集您所使用的设备的`globalProductId`、`productName`和`property`信息。这些信息不包含任何隐私数据，它们对于所有购买了同款设备的用户都是相同的。这些数据仅用于帮助插件作者分析是否有新款设备加入，并对它们进行适配。
+本集成可能会收集您所使用的设备的`globalProductId`、`productName`和`property`信息。这些信息不包含任何隐私数据，它们对于所有购买了同款设备的用户都是相同的。这些数据仅用于帮助集成作者分析是否有新款设备加入，并对它们进行适配。
 
 ## 免责声明
 
-请注意，对 Home Assistant 或本插件的使用可能带来安全风险。例如，通过 Home Assistant 自动化定时启动、关闭加热设备，可能因软硬件故障导致火灾风险。
+请注意，对 Home Assistant 或本集成的使用可能带来安全风险。例如，通过 Home Assistant 自动化定时启动、关闭加热设备，可能因软硬件故障导致火灾风险。
 
-本插件仅供研究学习使用。请您注意用电安全，本插件作者不对由使用该插件产生的任何后果负责。
+本集成仅供研究学习使用。请您注意用电安全，本集成作者不对由使用该集成产生的任何后果负责。
 
 ## 支持的设备
 
 目前已适配的公牛智能设备请参考 [DEVICES.md](DEVICES.md)。
+
+其中，7kW 交流充电桩（优享蓝牙款）D3-B32EB 设备支持通过蓝牙接入，兼容 ESPHome Bluetooth Proxy。如需通过 ESP32-C3、4G DTU 和 BLE 接入，请参阅独立项目 [hass-bull-d3-gateway](https://github.com/stevenjoezhang/hass-bull-d3-gateway)。
 
 [hacs]: https://my.home-assistant.io/redirect/hacs_repository/?owner=stevenjoezhang&repository=hass-iotbull&category=integration
