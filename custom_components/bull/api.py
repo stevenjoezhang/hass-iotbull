@@ -36,6 +36,10 @@ from .const import (
 )
 from .ble import BleIdentity, BullBleError
 from .cloud_charger import BullCloudServiceCharger
+from .digital_display_socket import (
+    DIGITAL_DISPLAY_SOCKET_PORTS,
+    DIGITAL_DISPLAY_SOCKET_PRODUCT_ID,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -775,7 +779,11 @@ class BullApi:
         for prop in info["property"].values():
             key = prop["identifier"]
             for flattened_key, flattened_value in self._flatten_identifier_values(
-                key, prop["value"]
+                key,
+                prop["value"],
+                concatenate_children=(
+                    device.global_product_id in DIGITAL_DISPLAY_SOCKET_PRODUCT_ID
+                ),
             ).items():
                 device.identifier_values[flattened_key] = flattened_value
         device_info = await self.async_get_device_info(device.iot_id)
@@ -786,12 +794,22 @@ class BullApi:
         # Use productName as the default nick_name (reliable fallback)
         device.nick_name = device.product_name
 
-    def _flatten_identifier_values(self, identifier: str, value) -> dict:
+    def _flatten_identifier_values(
+        self,
+        identifier: str,
+        value,
+        *,
+        concatenate_children: bool = False,
+    ) -> dict:
         """Return flat identifier-value mapping for legacy and nested sensor mapping."""
         flattened = {identifier: value}
         if isinstance(value, dict):
             for child_identifier, child_value in value.items():
                 flattened[f"{identifier}.{child_identifier}"] = child_value
+                if concatenate_children and identifier in (
+                    DIGITAL_DISPLAY_SOCKET_PORTS
+                ):
+                    flattened[f"{identifier}{child_identifier}"] = child_value
         return flattened
 
     async def async_parse_devices(self, db) -> None:
@@ -954,6 +972,11 @@ class BullApi:
                 items = params.get("items")
                 if not isinstance(items, dict):
                     raise ValueError("params.items is missing or is not an object")
+                device = self.device_list.get(iot_id)
+                concatenate_children = (
+                    device is not None
+                    and device.global_product_id in DIGITAL_DISPLAY_SOCKET_PRODUCT_ID
+                )
                 for identifier, info in items.items():
                     if not isinstance(identifier, str) or not isinstance(info, dict):
                         _LOGGER.warning(
@@ -970,7 +993,9 @@ class BullApi:
                         flattened_key,
                         flattened_value,
                     ) in self._flatten_identifier_values(
-                        identifier, info["value"]
+                        identifier,
+                        info["value"],
+                        concatenate_children=concatenate_children,
                     ).items():
                         self.on_message(iot_id, flattened_key, flattened_value)
                 return

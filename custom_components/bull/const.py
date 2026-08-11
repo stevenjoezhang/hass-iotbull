@@ -22,6 +22,7 @@ SUPPORTED_PLATFORMS = [
     "binary_sensor",
     "button",
     "select",
+    "number",
 ]
 
 # MosHome 5.1.13 production CloudAPI credentials.  These are application
@@ -60,6 +61,7 @@ SWITCH_PRODUCT_ID = {
     220,
     221,
     279,
+    296,
 }
 THING_SERVICE_CHARGER_PRODUCT_ID = {193, 195}
 CHARGER_PRODUCT_ID = {
@@ -108,6 +110,21 @@ SENSOR_MAPPING = {
         "name": "电流",
         "unit": UnitOfElectricCurrent.AMPERE,
         "class": "current",
+    },
+    "TotalConsumption": {
+        "name": "累计用电量",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
+        "class": "energy",
+    },
+    "PowerOnDuration": {
+        "name": "通电时长",
+        "unit": UnitOfTime.MINUTES,
+        "class": "duration",
+    },
+    "PowerLevel": {
+        "name": "功率档位",
+        "unit": None,
+        "class": None,
     },
     # For product 75, 141, 196
     "ActivePower": {"name": "功率", "unit": UnitOfPower.WATT, "class": "power"},

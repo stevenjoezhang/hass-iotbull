@@ -33,6 +33,38 @@
                     "plug_and_charge": "Plug and charge",
                     "automatic_start": "Automatic start"
                 }
+            },
+            "digital_display_socket_charge_mode": {
+                "name": "Power allocation mode",
+                "state": {
+                    "smart": "Smart",
+                    "dual_laptop": "Dual laptop",
+                    "sleep": "Sleep",
+                    "balanced": "Balanced",
+                    "custom_1": "Custom mode 1",
+                    "custom_2": "Custom mode 2",
+                    "custom_3": "Custom mode 3",
+                    "custom_4": "Custom mode 4",
+                    "custom_5": "Custom mode 5"
+                }
+            },
+            "digital_display_socket_off_screen_time": {
+                "name": "Automatic screen-off time",
+                "state": {
+                    "30_seconds": "30 seconds",
+                    "1_minute": "1 minute",
+                    "5_minutes": "5 minutes",
+                    "10_minutes": "10 minutes",
+                    "30_minutes": "30 minutes",
+                    "always_on": "Always on"
+                }
+            },
+            "digital_display_socket_clock_format": {
+                "name": "Clock format",
+                "state": {
+                    "12_hour": "12-hour",
+                    "24_hour": "24-hour"
+                }
             }
         }
     },

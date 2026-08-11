@@ -33,6 +33,38 @@
                     "plug_and_charge": "即插即充",
                     "automatic_start": "无感启充"
                 }
+            },
+            "digital_display_socket_charge_mode": {
+                "name": "功率分配模式",
+                "state": {
+                    "smart": "智能模式",
+                    "dual_laptop": "双笔记本模式",
+                    "sleep": "睡眠模式",
+                    "balanced": "均衡模式",
+                    "custom_1": "自由模式 1",
+                    "custom_2": "自由模式 2",
+                    "custom_3": "自由模式 3",
+                    "custom_4": "自由模式 4",
+                    "custom_5": "自由模式 5"
+                }
+            },
+            "digital_display_socket_off_screen_time": {
+                "name": "自动熄屏时间",
+                "state": {
+                    "30_seconds": "30 秒",
+                    "1_minute": "1 分钟",
+                    "5_minutes": "5 分钟",
+                    "10_minutes": "10 分钟",
+                    "30_minutes": "30 分钟",
+                    "always_on": "常亮"
+                }
+            },
+            "digital_display_socket_clock_format": {
+                "name": "时钟格式",
+                "state": {
+                    "12_hour": "12 小时制",
+                    "24_hour": "24 小时制"
+                }
             }
         }
     },

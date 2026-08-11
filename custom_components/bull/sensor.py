@@ -3,6 +3,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components.sensor.const import SensorStateClass
 
@@ -15,6 +16,53 @@ from .const import (
     SENSOR_PRODUCT_ID,
 )
 from .api import BullDevice
+from .digital_display_socket import (
+    DIGITAL_DISPLAY_SOCKET_PORT_NAMES,
+    DIGITAL_DISPLAY_SOCKET_PORTS,
+    DIGITAL_DISPLAY_SOCKET_PRODUCT_ID,
+    port_property_keys,
+    port_property_value,
+)
+
+DIGITAL_DISPLAY_SOCKET_MASTER_SENSORS = (
+    "RealTimePower",
+    "RealTimeVoltage",
+    "RealTimeCurrent",
+    "TotalConsumption",
+    "PowerOnDuration",
+    "PowerLevel",
+)
+
+DIGITAL_DISPLAY_SOCKET_PORT_SENSORS = {
+    "RealTimePower": SENSOR_MAPPING["RealTimePower"],
+    "RealTimeVoltage": SENSOR_MAPPING["RealTimeVoltage"],
+    "RealTimeCurrent": SENSOR_MAPPING["RealTimeCurrent"],
+    "Duration": {
+        "name": "供电时长",
+        "unit": UnitOfTime.MINUTES,
+        "class": "duration",
+    },
+    "CurrentProtocol": {
+        "name": "快充协议",
+        "unit": None,
+        "class": None,
+        "value_map": {
+            0: "未连接",
+            1: "PD",
+            2: "UFCS",
+            3: "QC 2.0",
+            4: "QC 3.0",
+            5: "QC 3+",
+            6: "FCP",
+            7: "SCP",
+            8: "SFCP",
+            9: "TFCP",
+            10: "AFC",
+            11: "PE",
+            12: "Xiaomi",
+        },
+    },
+}
 
 
 def _is_sensor_meta(value) -> bool:
@@ -110,6 +158,48 @@ class BullSensorEntity(SensorEntity):
         return value
 
 
+class BullDigitalDisplaySocketSensorEntity(BullSensorEntity):
+    """Master telemetry sensor for PID 296."""
+
+    @property
+    def name(self):
+        return f"{self._device.nick_name}{self._meta['name']}"
+
+
+class BullDigitalDisplaySocketPortSensorEntity(BullSensorEntity):
+    """Telemetry sensor for one PID 296 USB port."""
+
+    def __init__(self, device: BullDevice, port: str, suffix: str, meta: dict):
+        self._port = port
+        self._suffix = suffix
+        identifier, dotted_identifier, parent_identifier = port_property_keys(
+            port, suffix
+        )
+        super().__init__(device, identifier, identifier, meta)
+        device.register_entity(self, dotted_identifier, parent_identifier)
+
+    @property
+    def name(self):
+        return (
+            f"{self._device.nick_name}"
+            f"{DIGITAL_DISPLAY_SOCKET_PORT_NAMES[self._port]}"
+            f"{self._meta['name']}"
+        )
+
+    @property
+    def native_value(self):
+        value = port_property_value(
+            self._device.identifier_values, self._port, self._suffix
+        )
+        if value is None:
+            return None
+        if "value_map" in self._meta:
+            value = self._meta["value_map"].get(value, value)
+        if "scale" in self._meta:
+            value /= self._meta["scale"]
+        return value
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -144,6 +234,22 @@ async def async_setup_entry(
     }
 
     for device in bull_api.device_list.values():
+        if device.global_product_id in DIGITAL_DISPLAY_SOCKET_PRODUCT_ID:
+            entities.extend(
+                BullDigitalDisplaySocketSensorEntity(
+                    device,
+                    identifier,
+                    identifier,
+                    SENSOR_MAPPING[identifier],
+                )
+                for identifier in DIGITAL_DISPLAY_SOCKET_MASTER_SENSORS
+            )
+            entities.extend(
+                BullDigitalDisplaySocketPortSensorEntity(device, port, suffix, meta)
+                for port in DIGITAL_DISPLAY_SOCKET_PORTS
+                for suffix, meta in DIGITAL_DISPLAY_SOCKET_PORT_SENSORS.items()
+            )
+            continue
         if device.global_product_id in (
             SWITCH_PRODUCT_ID | CHARGER_PRODUCT_ID | SENSOR_PRODUCT_ID
         ):
